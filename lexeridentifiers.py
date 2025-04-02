@@ -6,11 +6,15 @@ class TokenType(Enum):
     keyword = 1
     identifier = 2    # For variable names, function names, etc.
     whitespace = 3    # For spaces, tabs, etc.
-    iteral = 4        # For values
-    seperator = 5     # For seperators/punctuator
-    operator = 6
-    error = 7        # For invalid tokens
-    end = 8           # For end of input
+    booleanliteral = 4        # For values
+    integerliteral = 5
+    floatliteral = 6
+    colourliteral = 7
+    seperator = 8     # For seperators/punctuator
+    operator = 9
+    type = 10
+    error = 11        # For invalid tokens
+    end = 12           # For end of input
 
 # Class to represent a token with its type and actual text (lexeme)
 class Token:
@@ -22,17 +26,19 @@ class Token:
 class Lexer:
     def __init__(self):
         # Categories of characters we'll encounter
-        self.lexeme_list = ["_", ".", "\"", "#", "letter", "digit","seperator","operator","boolean_value", "ws", "other"]
+        self.lexeme_list = ["_", ".", "#", "letter", "digit","seperator","operator","boolean_value", "ws", "other"]
 
-        self.keyword_list = {"for","let","while","return", "fun", "int", "float" ,"bool","colour","as",}
+        self.keyword_list = {"for","let","while","return", "fun","as",}
+
+        self.type_list = {"int", "float" , "bool" , "colour" }
         
         self.boolean_list = {"true", "false"}
         
         # Possible states of our finite automaton
-        self.states_list = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        self.states_list = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
         
         # Which states are accepting (valid end states for tokens)
-        self.states_accp = [1, 2, 3, 4, 5, 7, 9, 11]
+        self.states_accp = [1, 2, 3, 4, 5, 7, 9]
 
         # Calculate dimensions for our transition table
         self.rows = len(self.states_list)
@@ -79,20 +85,15 @@ class Lexer:
 
         self.Tx[0][self.lexeme_list.index("operator")] = 5
 
-        self.Tx[0][self.lexeme_list.index("\"")] = 8
-        self.Tx[8][self.lexeme_list.index("digit")] = 8
-        self.Tx[8][self.lexeme_list.index("letter")] = 8
-        self.Tx[8][self.lexeme_list.index("\"")] = 9
-
-        # - From state 0, on # go to state 10
-        self.Tx[0][self.lexeme_list.index("#")] = 10
+        # - From state 0, on # go to state 8
+        self.Tx[0][self.lexeme_list.index("#")] = 8
 
         # When theres a digit, letter move to the next state
-        self.Tx[10][self.lexeme_list.index("digit")] = 11
-        self.Tx[10][self.lexeme_list.index("letter")] = 11
+        self.Tx[8][self.lexeme_list.index("digit")] = 9
+        self.Tx[8][self.lexeme_list.index("letter")] = 9
 
-        self.Tx[11][self.lexeme_list.index("digit")] = 11
-        self.Tx[11][self.lexeme_list.index("letter")] = 11
+        self.Tx[9][self.lexeme_list.index("digit")] = 9
+        self.Tx[9][self.lexeme_list.index("letter")] = 9
 
         # Print the transition table for debugging
         for row in self.Tx:
@@ -113,26 +114,26 @@ class Lexer:
             if lexeme in self.keyword_list:
                 return Token(TokenType.keyword, lexeme)
             elif lexeme in self.boolean_list: 
-                return Token(TokenType.iteral, lexeme)
+                return Token(TokenType.booleanliteral, lexeme)
+            elif lexeme in self.type_list:
+                return Token(TokenType.type, lexeme)
             else:
                 return Token(TokenType.identifier, lexeme)
         elif state == 2:  # Whitespace state
             return Token(TokenType.whitespace, lexeme)
         elif state == 3:
-            return Token(TokenType.iteral, lexeme )
+            return Token(TokenType.integerliteral, lexeme )
         elif state == 4:
             return Token(TokenType.seperator, lexeme)
         elif state == 5:
             return Token(TokenType.operator, lexeme)
         elif state == 7: 
-            return Token(TokenType.iteral, lexeme)
-        elif state == 9:
-            return Token(TokenType.iteral, lexeme)
+            return Token(TokenType.floatliteral, lexeme)
         elif state == 11:             
             if len(lexeme) != 7 or not all(c.lower() in '0123456789abcdef' for c in lexeme[1:]):
                 return Token(TokenType.error, lexeme)
             else:
-                return Token(TokenType.iteral, lexeme)
+                return Token(TokenType.colourliteral, lexeme)
         else:
             return 'default result'
         
@@ -270,7 +271,7 @@ class Lexer:
 
 # Test the lexer
 lex = Lexer()
-toks = lex.GenerateTokens("fun XGreaterY_2(x:int, y:int) -> #23464f \"bozo\" true 3.543 {")
+toks = lex.GenerateTokens("fun MoreThan50(x:int) true -> bool {")
 
 # Print all found tokens
 for t in toks:
