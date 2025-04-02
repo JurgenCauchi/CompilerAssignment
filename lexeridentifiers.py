@@ -22,17 +22,17 @@ class Token:
 class Lexer:
     def __init__(self):
         # Categories of characters we'll encounter
-        self.lexeme_list = ["_", ".", "\"", "letter", "digit","seperator","operator","boolean_value", "ws", "other"]
+        self.lexeme_list = ["_", ".", "\"", "#", "letter", "digit","seperator","operator","boolean_value", "ws", "other"]
 
         self.keyword_list = {"for","let","while","return", "fun", "int", "float" ,"bool","colour","as",}
         
         self.boolean_list = {"true", "false"}
         
         # Possible states of our finite automaton
-        self.states_list = [0, 1, 2, 3, 4, 5, 6, 7,8,9]
+        self.states_list = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
         
         # Which states are accepting (valid end states for tokens)
-        self.states_accp = [1, 2, 3, 4, 5, 7,9]
+        self.states_accp = [1, 2, 3, 4, 5, 7, 9, 11]
 
         # Calculate dimensions for our transition table
         self.rows = len(self.states_list)
@@ -84,6 +84,16 @@ class Lexer:
         self.Tx[8][self.lexeme_list.index("letter")] = 8
         self.Tx[8][self.lexeme_list.index("\"")] = 9
 
+        # - From state 0, on # go to state 10
+        self.Tx[0][self.lexeme_list.index("#")] = 10
+
+        # When theres a digit, letter move to the next state
+        self.Tx[10][self.lexeme_list.index("digit")] = 11
+        self.Tx[10][self.lexeme_list.index("letter")] = 11
+
+        self.Tx[11][self.lexeme_list.index("digit")] = 11
+        self.Tx[11][self.lexeme_list.index("letter")] = 11
+
         # Print the transition table for debugging
         for row in self.Tx:
             print(row)
@@ -118,6 +128,11 @@ class Lexer:
             return Token(TokenType.iteral, lexeme)
         elif state == 9:
             return Token(TokenType.iteral, lexeme)
+        elif state == 11:             
+            if len(lexeme) != 7 or not all(c.lower() in '0123456789abcdef' for c in lexeme[1:]):
+                return Token(TokenType.error, lexeme)
+            else:
+                return Token(TokenType.iteral, lexeme)
         else:
             return 'default result'
         
@@ -130,6 +145,7 @@ class Lexer:
         if character == "_": cat = "_"
         if character == ".": cat = "."
         if character == "\"": cat = "\""
+        if character == "#": cat = "#"
         if character == " ": cat = "ws"      
         if character in {"(",")","{","}",";",":",","}: cat = "seperator"
         if character in {"+","-","<",">","=","->","/","and","or"}: cat = "operator"
@@ -169,17 +185,24 @@ class Lexer:
             exists, character = self.NextChar(src_program_str, src_program_idx)
             lexeme += character
             
+
             # Stop if we're at end of input
             if not exists: 
                 break
             
+            
+
             # Move to next character position
             src_program_idx += 1
             
+
             # Categorize the character and look up next state
             cat = self.CatChar(character)
             state = self.Tx[state][self.lexeme_list.index(cat)]
             
+
+            
+
             # Debug print (commented out)
             #print("Lexeme: ", lexeme, " => NEXT STATE: ", state, "  => CAT: ", cat, "  => CHAR:", character, "  => STACK: ", stack)
         
@@ -206,6 +229,7 @@ class Lexer:
                 state = stack.pop()
                 break
         
+
         # Handle syntax errors
         if syntax_error:
             return Token(TokenType.error, lexeme), "error"
@@ -215,6 +239,8 @@ class Lexer:
             return self.GetTokenTypeByFinalState(state, lexeme), lexeme
         else: 
             return Token(TokenType.error, lexeme), "Lexical Error"
+
+        
 
     # Main function to tokenize entire input string
     def GenerateTokens(self, src_program_str):
@@ -244,7 +270,7 @@ class Lexer:
 
 # Test the lexer
 lex = Lexer()
-toks = lex.GenerateTokens("fun XGreaterY_2(x:int, y:int) -> \"bozo\" true 3.543 {")
+toks = lex.GenerateTokens("fun XGreaterY_2(x:int, y:int) -> #23464f \"bozo\" true 3.543 {")
 
 # Print all found tokens
 for t in toks:
