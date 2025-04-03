@@ -28,6 +28,16 @@ class ASTVariableNode(ASTExpressionNode):
     def accept(self, visitor):
         visitor.visit_variable_node(self)
 
+class ASTLetNode(ASTExpressionNode):
+    def __init__(self, lexeme):
+        super().__init__()
+        self.name = "ASTLetNode"
+        self.lexeme = lexeme  # The actual variable name (e.g., "x", "count")
+
+    # Visitor pattern accept method
+    def accept(self, visitor):
+        visitor.visit_let_node(self)
+
 class ASTTypeNode(ASTExpressionNode):
     def __init__(self, lexeme):
         super().__init__()
@@ -97,9 +107,10 @@ class ASTBooleanNode(ASTExpressionNode):
 
 # Node for assignment statements (extends statement node)
 class ASTAssignmentNode(ASTStatementNode):
-    def __init__(self, ast_type_node, ast_colon_node, ast_var_node, ast_expression_node):
+    def __init__(self, ast_let_node, ast_type_node, ast_colon_node, ast_var_node, ast_expression_node):
         super().__init__()
-        self.name = "ASTStatementNode"  
+        self.name = "ASTStatementNode"
+        self.let = ast_let_node  
         self.type = ast_type_node      # Stores the type of the variable
         self.colon = ast_colon_node
         self.id = ast_var_node         # Left-hand side (variable being assigned to)
@@ -132,7 +143,10 @@ class ASTVisitor:
         raise NotImplementedError()
 
     def visit_colon_node(self,node):
-        raise NotADirectoryError()
+        raise NotImplementedError()
+
+    def visit_let_node(self,node):
+        raise NotImplementedError()
     
     def visit_integer_node(self, node):
         raise NotImplementedError()
@@ -198,7 +212,8 @@ class PrintNodesVisitor(ASTVisitor):
     def visit_assignment_node(self, ass_node):
         self.node_count += 1
         print('\t' * self.tab_count, "Assignment node => ")
-        self.inc_tab_count()        
+        self.inc_tab_count()    
+        ass_node.let.accept(self)    
         ass_node.type.accept(self)
         ass_node.colon.accept(self)
         ass_node.id.accept(self)    # Visit the left-hand side
@@ -217,6 +232,11 @@ class PrintNodesVisitor(ASTVisitor):
     def visit_colon_node(self, colon_node):
         self.node_count += 1
         print('\t' * self.tab_count, "Colon => ", colon_node.lexeme)
+    
+    def visit_let_node(self, let_node):
+        self.node_count += 1
+        print('\t' * self.tab_count, "let => ", let_node.lexeme)
+
 
     # Visit a block node
     def visit_block_node(self, block_node):
@@ -237,14 +257,14 @@ print("Building AST for assigment statement x=23;")
 print_visitor = PrintNodesVisitor()
 
 # Create nodes for the assignment:
-assignment_type = ASTTypeNode("int")
-assignment_colon = ASTColonNode(":")
-assignment_lhs = ASTVariableNode("x")  # Left side is variable 'x'
-assignment_rhs = ASTIntegerNode(23)    # Right side is integer 23
-root = ASTAssignmentNode(assignment_type, assignment_colon, assignment_lhs, assignment_rhs)  # Combine into assignment
+#assignment_type = ASTTypeNode("int")
+#assignment_colon = ASTColonNode(":")
+#ssignment_lhs = ASTVariableNode("x")  # Left side is variable 'x'
+#assignment_rhs = ASTIntegerNode(23)    # Right side is integer 23
+#root = ASTAssignmentNode(assignment_type, assignment_colon, assignment_lhs, assignment_rhs)  # Combine into assignment
 
 # Print the AST structure
-root.accept(print_visitor)
+#root.accept(print_visitor)
 print("Node Count => ", print_visitor.node_count)
 print("----")
 

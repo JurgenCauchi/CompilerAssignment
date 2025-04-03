@@ -32,13 +32,20 @@ class Parser:
 
         #print("Next Token Set to ::: ", self.crtToken.type, self.crtToken.lexeme)                 
 
-    def _validate_colon_exists(self, node):
-        if not node:
-                raise SyntaxError(f"Missing :")
         
-    def _validate_type_match(self, declared_type, value_node):
+    def _validate_type_match(self, let_node, declared_type, value_node, colon_node):
         """Verify that the value matches the declared type"""
         # Get the actual type of the value
+        letcheck = None
+        coloncheck = None
+
+        if isinstance(colon_node, ast.ASTColonNode):
+            coloncheck = ":"
+
+
+        if isinstance(let_node, ast.ASTLetNode):
+            letcheck = "let"
+        
         if isinstance(value_node, ast.ASTIntegerNode):
             actual_type = "int"
         elif isinstance(value_node, ast.ASTFloatNode):
@@ -50,13 +57,20 @@ class Parser:
         else:
             actual_type = "unknown"
 
-        if declared_type != ":":
+        if letcheck != "let":
+
+            raise SyntaxError(f"Missing let")
+
+        if coloncheck == None:
+            print(coloncheck)
+            raise SyntaxError(f"Missing Colon")
+        
         # Check for missing type
-            if declared_type == None:
-                    raise SyntaxError(f"Missing Type")
-            if declared_type != actual_type:
+        if declared_type == None:
+            raise SyntaxError(f"Missing Type")
+        if declared_type != actual_type:
                 # Handle special cases (like int vs float)
-                    raise SyntaxError(f"Type mismatch: cannot assign {actual_type} to {declared_type} variable")
+            raise SyntaxError(f"Type mismatch: cannot assign {actual_type} to {declared_type} variable")
 
             
     def ParseExpression(self):
@@ -81,6 +95,10 @@ class Parser:
     def ParseAssignment(self):
         ass_type = None
         assignment_colon = None
+        assignment_let = None
+        if (self.crtToken.type == lex.TokenType.let):
+            assignment_let = ast.ASTLetNode(self.crtToken.lexeme)
+            self.NextToken() 
         if (self.crtToken.type == lex.TokenType.type):
             assignment_type = ast.ASTTypeNode(self.crtToken.lexeme)
             ass_type = self.crtToken.lexeme
@@ -98,16 +116,14 @@ class Parser:
         if (self.crtToken.type == lex.TokenType.equals):
             self.NextToken()
 
-
-        self._validate_colon_exists(assignment_colon)
-
+ 
         #Next sequence of tokens should make up an expression ... therefor call ParseExpression that will return the subtree representing that expression
         assignment_rhs = self.ParseExpression()
         
         
-        self._validate_type_match(ass_type, assignment_rhs)
+        self._validate_type_match(assignment_let, ass_type, assignment_rhs, assignment_colon)
 
-        return ast.ASTAssignmentNode(assignment_type, assignment_colon, assignment_lhs, assignment_rhs)
+        return ast.ASTAssignmentNode(assignment_let, assignment_type, assignment_colon, assignment_lhs, assignment_rhs)
             
     def ParseStatement(self):
         #At the moment we only have assignment statements .... you'll need to add more for the assignment - branching depends on the token type
@@ -140,7 +156,7 @@ class Parser:
 
 
 #parser = Parser("x=23;")
-parser = Parser("  float :   x=   3.4 ;")
+parser = Parser("  let float  :   x=   3.4 ;")
 parser.Parse()
 
 print_visitor = ast.PrintNodesVisitor()

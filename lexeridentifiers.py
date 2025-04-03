@@ -3,21 +3,26 @@ from enum import Enum
 
 # Define different types of tokens our lexer will recognize
 class TokenType(Enum):
-    keyword = 1
-    identifier = 2    # For variable names, function names, etc.
-    whitespace = 3    # For spaces, tabs, etc.
-    booleanliteral = 4        # For values
-    integerliteral = 5
-    floatliteral = 6
-    colourliteral = 7
-    seperator = 8     # For seperators/punctuator
-    operator = 9
-    semicolon = 10
-    colon = 11
-    equals = 12
-    type = 13
-    error = 14        # For invalid tokens
-    end = 15           # For end of input
+    let = 1
+    rtrn = 2
+    loop = 3
+    fun = 4 
+    identifier = 5    # For variable names, function names, etc.
+    whitespace = 6    # For spaces, tabs, etc.
+    booleanliteral = 7        # For values
+    integerliteral = 8
+    floatliteral = 9
+    colourliteral = 10
+    seperator = 11     # For seperators/punctuator
+    mulop = 12
+    addop = 13
+    relop = 14
+    semicolon = 15
+    colon = 16
+    equals = 17
+    type = 18
+    error = 19        # For invalid tokens
+    end = 20         # For end of input
 
 # Class to represent a token with its type and actual text (lexeme)
 class Token:
@@ -29,19 +34,17 @@ class Token:
 class Lexer:
     def __init__(self):
         # Categories of characters we'll encounter
-        self.lexeme_list = ["_", ".", "#",";",":", "=", "letter", "digit","seperator","operator","boolean_value", "ws", "other"]
-
-        self.keyword_list = {"for","let","while","return", "fun","as",}
+        self.lexeme_list = ["_", ".", "#",";",":", "=", "letter", "digit","seperator","mulop","addop","relop","boolean_value", "ws", "other"]
 
         self.type_list = {"int", "float" , "bool" , "colour" }
         
         self.boolean_list = {"true", "false"}
         
         # Possible states of our finite automaton
-        self.states_list = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 , 11,12]
+        self.states_list = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 , 11, 12, 13, 14, 15]
         
         # Which states are accepting (valid end states for tokens)
-        self.states_accp = [1, 2, 3, 4, 5, 7, 9 , 10, 11 ,12]
+        self.states_accp = [1, 2, 3, 4, 5, 7, 9 , 10, 11 ,12, 13, 14, 15]
 
         # Calculate dimensions for our transition table
         self.rows = len(self.states_list)
@@ -86,7 +89,12 @@ class Lexer:
         # - From state 0, on seperator go to state 4
         self.Tx[0][self.lexeme_list.index("seperator")] = 4
 
-        self.Tx[0][self.lexeme_list.index("operator")] = 5
+        self.Tx[0][self.lexeme_list.index("mulop")] = 5
+
+        self.Tx[0][self.lexeme_list.index("addop")] = 13 
+
+        self.Tx[0][self.lexeme_list.index("relop")] = 14
+        self.Tx[14][self.lexeme_list.index("=")] = 15 
 
         # - From state 0, on # go to state 8
         self.Tx[0][self.lexeme_list.index("#")] = 8
@@ -101,8 +109,12 @@ class Lexer:
         self.Tx[0][self.lexeme_list.index(";")] = 10
 
         self.Tx[0][self.lexeme_list.index("=")] = 11
+        self.Tx[11][self.lexeme_list.index("=")] = 15
 
         self.Tx[0][self.lexeme_list.index(":")] = 12
+
+
+
         # Print the transition table for debugging
         for row in self.Tx:
             print(row)
@@ -119,12 +131,22 @@ class Lexer:
     def GetTokenTypeByFinalState(self, state, lexeme):
         if state == 1:  # Identifier state
             # Check if lexeme is in keyword list first
-            if lexeme in self.keyword_list:
-                return Token(TokenType.keyword, lexeme)
-            elif lexeme in self.boolean_list: 
+            if lexeme in self.boolean_list: 
                 return Token(TokenType.booleanliteral, lexeme)
             elif lexeme in self.type_list:
                 return Token(TokenType.type, lexeme)
+            elif lexeme == "and":
+                return Token(TokenType.mulop, lexeme)
+            elif lexeme == "or":
+                return Token(TokenType.addop, lexeme)
+            elif lexeme == "return":
+                return Token(TokenType.rtrn, lexeme)
+            elif lexeme in {"for","while"}:
+                return Token(TokenType.loop, lexeme)
+            elif lexeme == "fun":
+                return Token(TokenType.fun, lexeme)
+            elif lexeme == "let":
+                return Token(TokenType.let, lexeme)
             else:
                 return Token(TokenType.identifier, lexeme)
         elif state == 2:  # Whitespace state
@@ -134,7 +156,7 @@ class Lexer:
         elif state == 4:
             return Token(TokenType.seperator, lexeme)
         elif state == 5:
-            return Token(TokenType.operator, lexeme)
+            return Token(TokenType.mulop, lexeme)
         elif state == 7: 
             return Token(TokenType.floatliteral, lexeme)
         elif state == 9:             
@@ -148,6 +170,12 @@ class Lexer:
             return Token(TokenType.equals, lexeme)
         elif state == 12:
             return Token(TokenType.colon, lexeme)
+        elif state == 13:
+            return Token(TokenType.addop, lexeme)
+        elif state == 14:
+            return Token(TokenType.relop, lexeme)
+        elif state == 15:
+            return Token(TokenType.relop, lexeme)
         else:
             return 'default result'
         
@@ -166,8 +194,10 @@ class Lexer:
         if character == ":": cat = ":"
         if character == "=": cat = "="
         if character == "->": cat = "->"
+        if character in {"*","/",}: cat = "mulop"
+        if character in {"+","-",}: cat = "addop"
+        if character in {"<",">","!"}: cat = "relop"
         if character in {"(",")","{","}",","}: cat = "seperator"
-        if character in {"+","-","<",">","/","and","or"}: cat = "operator"
         return cat
 
     # Check if we've reached the end of input
@@ -289,7 +319,7 @@ class Lexer:
 
 # Test the lexer
 lex = Lexer()
-toks = lex.GenerateTokens("fun MoreThan50(x:int) 4.6 true -> bool {")
+toks = lex.GenerateTokens("let")
 
  #Print all found tokens
 for t in toks:
