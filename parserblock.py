@@ -152,31 +152,31 @@ class Parser:
             self.NextToken()
             return ast.ASTVariableNode(value)
 
-        # Pad functions
-        # elif token.type == lex.TokenType.padread:
-        #     self.NextToken()
-        #     return ast.ASTPadReadNode()
+        #Pad functions
+        elif token.type == lex.TokenType.padread:
+            self.NextToken()
+            return ast.ASTPadReadNode()
 
-        # elif token.type == lex.TokenType.padrandi:
-        #     self.NextToken()
-        #     return ast.ASTPadRandINode()
+        elif token.type == lex.TokenType.padrandom_int:
+            self.NextToken()
+            return ast.ASTPadRandINode()
 
-        # elif token.type == lex.TokenType.padwidth:
-        #     self.NextToken()
-        #     return ast.ASTPadWidthNode()
+        elif token.type == lex.TokenType.padwidth:
+            self.NextToken()
+            return ast.ASTPadWidthNode()
 
-        # elif token.type == lex.TokenType.padheight:
-        #     self.NextToken()
-        #     return ast.ASTPadHeightNode()
+        elif token.type == lex.TokenType.padheight:
+            self.NextToken()
+            return ast.ASTPadHeightNode()
 
-        # # Subexpression (parentheses)
-        # elif token.type == lex.TokenType.lparen:
-        #     self.NextToken()
-        #     expr = self.ParseExpression()
-        #     if self.crtToken.type != lex.TokenType.rparen:
-        #         raise SyntaxError("Expected ')' after expression")
-        #     self.NextToken()
-        #     return expr
+        # Subexpression (parentheses)
+        elif token.type == lex.TokenType.lparen:
+            self.NextToken()
+            expr = self.ParseExpression()
+            if self.crtToken.type != lex.TokenType.rparen:
+                raise SyntaxError("Expected ')' after expression")
+            self.NextToken()
+            return expr
 
         # Unary negation (e.g. -x)
         elif token.type == lex.TokenType.addop and token.lexeme == '-':

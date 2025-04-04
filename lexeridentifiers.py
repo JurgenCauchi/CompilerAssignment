@@ -13,7 +13,7 @@ class TokenType(Enum):
     integerliteral = 8
     floatliteral = 9
     colourliteral = 10
-    seperator = 11     # For seperators/punctuator
+    comma = 11     # For seperators/punctuator
     mulop = 12
     addop = 13
     relop = 14
@@ -22,8 +22,16 @@ class TokenType(Enum):
     equals = 17
     type = 18
     as_kw = 19
-    error = 20        # For invalid tokens
-    end = 21         # For end of input
+    padwidth = 20
+    padheight = 21
+    padread = 22
+    padrandom_int =23
+    lcurly = 24
+    rcurly = 25
+    lparen = 26
+    rparen = 27
+    error = 24        # For invalid tokens
+    end = 25         # For end of input
 
 # Class to represent a token with its type and actual text (lexeme)
 class Token:
@@ -35,17 +43,17 @@ class Token:
 class Lexer:
     def __init__(self):
         # Categories of characters we'll encounter
-        self.lexeme_list = ["_", ".", "#",";",":", "=", "letter", "digit","seperator","mulop","addop","relop","boolean_value", "ws", "other"]
+        self.lexeme_list = ["_", ".", "#",";",":", "=","comma", "letter", "digit","{","}","(",")","mulop","addop","relop","boolean_value", "ws", "other"]
 
         self.type_list = {"int", "float" , "bool" , "colour" }
         
         self.boolean_list = {"true", "false"}
         
         # Possible states of our finite automaton
-        self.states_list = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 , 11, 12, 13, 14, 15]
+        self.states_list = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 , 11, 12, 13, 14, 15, 16, 17, 18, 19]
         
         # Which states are accepting (valid end states for tokens)
-        self.states_accp = [1, 2, 3, 4, 5, 7, 9 , 10, 11 ,12, 13, 14, 15]
+        self.states_accp = [1, 2, 3, 4, 5, 7, 9 , 10, 11 ,12, 13, 14, 15, 16, 17, 18, 19]
 
         # Calculate dimensions for our transition table
         self.rows = len(self.states_list)
@@ -88,7 +96,7 @@ class Lexer:
         self.Tx[0][self.lexeme_list.index("boolean_value")] = 3
 
         # - From state 0, on seperator go to state 4
-        self.Tx[0][self.lexeme_list.index("seperator")] = 4
+        self.Tx[0][self.lexeme_list.index("comma")] = 4
 
         self.Tx[0][self.lexeme_list.index("mulop")] = 5
 
@@ -114,6 +122,13 @@ class Lexer:
 
         self.Tx[0][self.lexeme_list.index(":")] = 12
 
+        #To get the curly brackets token
+        self.Tx[0][self.lexeme_list.index("{")] = 16
+        self.Tx[0][self.lexeme_list.index("}")] = 17
+
+        #To get the brackets token
+        self.Tx[0][self.lexeme_list.index("(")] = 18
+        self.Tx[0][self.lexeme_list.index(")")] = 19
 
 
         # Print the transition table for debugging
@@ -150,6 +165,14 @@ class Lexer:
                 return Token(TokenType.let, lexeme)
             elif lexeme == "as":
                 return Token(TokenType.as_kw, lexeme)
+            elif lexeme == "__width":
+                return Token(TokenType.padwidth, lexeme)
+            elif lexeme == "__height":
+                return Token(TokenType.padheight, lexeme)
+            elif lexeme == "__read":
+                return Token(TokenType.padread, lexeme)
+            elif lexeme == "__random_int":
+                return Token(TokenType.padrandom_int, lexeme)
             else:
                 return Token(TokenType.identifier, lexeme)
         elif state == 2:  # Whitespace state
@@ -157,7 +180,7 @@ class Lexer:
         elif state == 3:
             return Token(TokenType.integerliteral, lexeme )
         elif state == 4:
-            return Token(TokenType.seperator, lexeme)
+            return Token(TokenType.comma, lexeme)
         elif state == 5:
             return Token(TokenType.mulop, lexeme)
         elif state == 7: 
@@ -179,6 +202,14 @@ class Lexer:
             return Token(TokenType.relop, lexeme)
         elif state == 15:
             return Token(TokenType.relop, lexeme)
+        elif state == 16:
+            return Token(TokenType.lcurly, lexeme)
+        elif state == 17:
+            return Token(TokenType.rcurly, lexeme)
+        elif state == 18:
+            return Token(TokenType.lparen, lexeme)
+        elif state == 19:
+            return Token(TokenType.rparen, lexeme)
         else:
             return 'default result'
         
@@ -197,10 +228,14 @@ class Lexer:
         if character == ":": cat = ":"
         if character == "=": cat = "="
         if character == "->": cat = "->"
+        if character == "}" : cat = "}"
+        if character == "{" : cat = "{"
+        if character == "(" : cat = "("
+        if character == ")" : cat = ")"
         if character in {"*","/",}: cat = "mulop"
         if character in {"+","-",}: cat = "addop"
         if character in {"<",">","!"}: cat = "relop"
-        if character in {"(",")","{","}",","}: cat = "seperator"
+        if character == ",": cat = "comma"
         return cat
 
     # Check if we've reached the end of input
