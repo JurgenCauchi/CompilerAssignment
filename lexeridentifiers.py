@@ -21,8 +21,9 @@ class TokenType(Enum):
     colon = 16
     equals = 17
     type = 18
-    error = 19        # For invalid tokens
-    end = 20         # For end of input
+    as_kw = 19
+    error = 20        # For invalid tokens
+    end = 21         # For end of input
 
 # Class to represent a token with its type and actual text (lexeme)
 class Token:
@@ -147,6 +148,8 @@ class Lexer:
                 return Token(TokenType.fun, lexeme)
             elif lexeme == "let":
                 return Token(TokenType.let, lexeme)
+            elif lexeme == "as":
+                return Token(TokenType.as_kw, lexeme)
             else:
                 return Token(TokenType.identifier, lexeme)
         elif state == 2:  # Whitespace state

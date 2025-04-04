@@ -5,6 +5,22 @@ class ASTNode:
     def __init__(self):
         self.name = "ASTNode"  # Identifier for the node type
 
+# Node for the entire program (extends ASTNode)
+class ASTProgramNode(ASTNode):
+    def __init__(self):
+        super().__init__()
+        self.name = "ASTProgramNode"
+        self.statements = []  # List of all top-level statements in the program
+
+    # Add a statement to the program
+    def add_statement(self, statement):
+        self.statements.append(statement)
+
+    # Visitor pattern accept method
+    def accept(self, visitor):
+        visitor.visit_program_node(self)
+
+
 # Base class for all statement nodes (extends ASTNode)
 class ASTStatementNode(ASTNode):
     def __init__(self):
@@ -13,9 +29,30 @@ class ASTStatementNode(ASTNode):
 
 # Base class for all expression nodes (extends ASTNode)
 class ASTExpressionNode(ASTNode):
-    def __init__(self):
+    def __init__(self, op=None, left=None, right=None, value=None, cast_type=None):
         super().__init__()
         self.name = "ASTExpressionNode"
+
+        # For binary/unary operations
+        self.op = op        # E.g. '+', '-', '*', '/', '<', '>', etc.
+        self.left = left    # ASTExpressionNode or ASTFactorNode
+        self.right = right  # ASTExpressionNode or ASTFactorNode
+
+        # For leaf nodes like literals, identifiers, function calls
+        self.value = value  # E.g. 2, "x", FunctionCallNode, PadReadNode, etc.
+
+        # For type casting
+        self.cast_type = cast_type  # E.g. "int", "float", etc.
+
+    def __str__(self):
+        if self.value is not None:
+            return f"Value({self.value})"
+        elif self.op is not None:
+            return f"({self.left} {self.op} {self.right})"
+        return "Expression"
+    # Visitor pattern accept method
+    def accept(self, visitor):
+        visitor.visit_expression_node(self)
 
 # Node for variables (extends expression node since variables can be used in expressions)
 class ASTVariableNode(ASTExpressionNode):
@@ -28,16 +65,6 @@ class ASTVariableNode(ASTExpressionNode):
     def accept(self, visitor):
         visitor.visit_variable_node(self)
 
-class ASTLetNode(ASTExpressionNode):
-    def __init__(self, lexeme):
-        super().__init__()
-        self.name = "ASTLetNode"
-        self.lexeme = lexeme  # The actual variable name (e.g., "x", "count")
-
-    # Visitor pattern accept method
-    def accept(self, visitor):
-        visitor.visit_let_node(self)
-
 class ASTTypeNode(ASTExpressionNode):
     def __init__(self, lexeme):
         super().__init__()
@@ -47,16 +74,6 @@ class ASTTypeNode(ASTExpressionNode):
     # Visitor pattern accept method
     def accept(self, visitor):
         visitor.visit_type_node(self)
-
-class ASTColonNode(ASTExpressionNode):
-    def __init__(self, lexeme):
-        super().__init__()
-        self.name = "ASTColonNode"
-        self.lexeme = lexeme  # The actual variable name (e.g., "x", "count")
-
-    # Visitor pattern accept method
-    def accept(self, visitor):
-        visitor.visit_colon_node(self)
 
 
 # Node for integer literals (extends expression node)
@@ -105,20 +122,32 @@ class ASTBooleanNode(ASTExpressionNode):
     def accept(self, visitor):
         visitor.visit_boolean_node(self)    
 
-# Node for assignment statements (extends statement node)
-class ASTAssignmentNode(ASTStatementNode):
-    def __init__(self, ast_let_node, ast_type_node, ast_colon_node, ast_var_node, ast_expression_node):
+
+class ASTMultiOpNode(ASTExpressionNode):
+    def __init__(self, op, left, right):
         super().__init__()
-        self.name = "ASTStatementNode"
-        self.let = ast_let_node  
+        self.name = "ASTBinaryOpNode"
+        self.op = op          # The operator (e.g., "*", "/", "and")
+        self.left = left      # Left operand (ASTExpressionNode)
+        self.right = right    # Right operand (ASTExpressionNode)
+
+    # Visitor pattern accept method
+    def accept(self, visitor):
+        visitor.visit_multi_op_node(self)
+
+
+# Node for assignment statements (extends statement node)
+class ASTDeclarationNode(ASTStatementNode):
+    def __init__(self, ast_type_node,  ast_var_node, ast_expression_node):
+        super().__init__()
+        self.name = "ASTDeclarationNode"
         self.type = ast_type_node      # Stores the type of the variable
-        self.colon = ast_colon_node
         self.id = ast_var_node         # Left-hand side (variable being assigned to)
         self.expr = ast_expression_node # Right-hand side (expression being assigned)
 
     # Visitor pattern accept method
     def accept(self, visitor):
-        visitor.visit_assignment_node(self)                
+        visitor.visit_declaration_node(self)                
 
 # Node for blocks of statements (like { stmt1; stmt2; })
 class ASTBlockNode(ASTNode):
@@ -138,14 +167,13 @@ class ASTBlockNode(ASTNode):
 # Abstract base class for AST visitors (implements Visitor pattern)
 class ASTVisitor:
     # These methods must be implemented by concrete visitors
-
+    def visit_program_node(self, node):
+        raise NotImplementedError()
+    
+    def visit_multi_op_node(self, node):
+        raise NotImplementedError()
+    
     def visit_type_node(self, node):
-        raise NotImplementedError()
-
-    def visit_colon_node(self,node):
-        raise NotImplementedError()
-
-    def visit_let_node(self,node):
         raise NotImplementedError()
     
     def visit_integer_node(self, node):
@@ -160,7 +188,7 @@ class ASTVisitor:
     def visit_boolean_node(self, node):
         raise NotImplementedError()
 
-    def visit_assignment_node(self, node):
+    def visit_decleration_node(self, node):
         raise NotImplementedError()
     
     def visit_variable_node(self, node):
@@ -178,6 +206,18 @@ class ASTVisitor:
 
 # Concrete visitor that prints the AST structure
 class PrintNodesVisitor(ASTVisitor):
+
+    def visit_program_node(self, program_node):
+        self.node_count += 1
+        print('\t' * self.tab_count, "Program:")
+        self.inc_tab_count()
+        
+        # Visit each statement in the program
+        for stmt in program_node.statements:
+            stmt.accept(self)
+        
+        self.dec_tab_count()
+
     def __init__(self):
         self.name = "Print Tree Visitor"
         self.node_count = 0  # Counts how many nodes we visit
@@ -209,13 +249,11 @@ class PrintNodesVisitor(ASTVisitor):
         print('\t' * self.tab_count, "Boolean value::", boolean_node.value)
 
     # Visit an assignment node
-    def visit_assignment_node(self, ass_node):
+    def visit_declaration_node(self, ass_node):
         self.node_count += 1
-        print('\t' * self.tab_count, "Assignment node => ")
+        print('\t' * self.tab_count, "Declaration node => ")
         self.inc_tab_count()    
-        ass_node.let.accept(self)    
         ass_node.type.accept(self)
-        ass_node.colon.accept(self)
         ass_node.id.accept(self)    # Visit the left-hand side
         ass_node.expr.accept(self)   # Visit the right-hand side
         self.dec_tab_count()
@@ -225,18 +263,36 @@ class PrintNodesVisitor(ASTVisitor):
         self.node_count += 1
         print('\t' * self.tab_count, "Variable => ", var_node.lexeme)
 
+    def visit_expression_node(self, var_node):
+        self.node_count += 1
+        print('\t' * self.tab_count, f"Expression => Operator: {var_node.op}")
+        
+        self.tab_count += 1
+        
+        # Left side
+        if hasattr(var_node, 'left') and var_node.left:
+            print('\t' * self.tab_count, "Left:")
+            self.tab_count += 1
+            var_node.left.accept(self)
+            self.tab_count -= 1
+
+        # Right side
+        if hasattr(var_node, 'right') and var_node.right:
+            print('\t' * self.tab_count, "Right:")
+            self.tab_count += 1
+            var_node.right.accept(self)
+            self.tab_count -= 1
+
+        # Optional cast
+        if hasattr(var_node, 'cast_type') and var_node.cast_type:
+            print('\t' * self.tab_count, f"Cast to: {var_node.cast_type}")
+
+        self.tab_count -= 1
+
+
     def visit_type_node(self, type_node):
         self.node_count += 1
         print('\t' * self.tab_count, "Type => ", type_node.lexeme)
-
-    def visit_colon_node(self, colon_node):
-        self.node_count += 1
-        print('\t' * self.tab_count, "Colon => ", colon_node.lexeme)
-    
-    def visit_let_node(self, let_node):
-        self.node_count += 1
-        print('\t' * self.tab_count, "let => ", let_node.lexeme)
-
 
     # Visit a block node
     def visit_block_node(self, block_node):
