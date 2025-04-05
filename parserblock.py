@@ -15,6 +15,21 @@ class Parser:
         self.nextToken = lex.Token("", lex.TokenType.error)
         self.ASTroot = ast.ASTProgramNode    
 
+    def IsStartOfSimpleExpression(self):
+        # Tokens that can start an expression:
+        return self.crtToken.type in (
+            lex.TokenType.identifier,    # e.g., 'x', 'foo'
+            lex.TokenType.integerliteral,        # e.g., '42'
+            lex.TokenType.floatliteral,        # e.g., '"3.4"'
+            lex.TokenType.colourliteral, 
+            lex.TokenType.booleanliteral,
+            lex.TokenType.not_kw,# e.g., '"hello"       # e.g., '"hello"'
+            lex.TokenType.padheight,
+            lex.TokenType.padwidth,
+            lex.TokenType.padread, 
+            lex.TokenType.padrandom_int, 
+            # Add other expression-starting tokens (e.g., 'PadRandI')
+        )
     #Skips any white space
     def NextTokenSkipWS(self):
         self.index += 1   #Grab the next token
@@ -110,9 +125,7 @@ class Parser:
     def ParseTerm(self):
         left = self.ParseFactor()
 
-        if self.crtToken.type != lex.TokenType.mulop:
-            raise SyntaxError(f"Expected multiplicative operator after factor, got '{self.crtToken.lexeme}'")
-
+        # Optional multiplicative operators
         while self.crtToken.type == lex.TokenType.mulop:
             op = self.crtToken.lexeme
             self.NextToken()
@@ -120,6 +133,12 @@ class Parser:
             left = ast.ASTExpressionNode(op=op, left=left, right=right)
 
         return left
+    def ParseUnary(self):
+        token = self.crtToken
+        if token.lexeme in ('-', 'not'):
+            op = self.crtToken.lexeme
+            right = self.ParseExpression()  # or parse the appropriate precedence level
+            return ast.ASTUnaryNode(op,right)
 
 
 
@@ -179,12 +198,17 @@ class Parser:
             return expr
 
         # Unary negation (e.g. -x)
-        elif token.type == lex.TokenType.addop and token.lexeme == '-':
+        elif token.type == lex.TokenType.not_kw:
             self.NextToken()
-            right = self.ParseFactor()
+            right = self.ParseExpression()
             return ast.ASTExpressionNode(op='neg', right=right)
 
-        raise SyntaxError(f"Unexpected token in expression: {token.lexeme}")
+    def ParseReturn(self):
+        if self.crtToken.type != lex.TokenType.rtrn:
+            raise SyntaxError(f"Expected 'return' at start of the return statement, got {self.crtToken.lexeme}")
+        self.NextToken()
+        expr = self.ParseExpression()
+        return ast.ASTReturnNode(expr)
 
     def ParseDeclaration(self):
         # 1. Expect 'let'
@@ -226,8 +250,19 @@ class Parser:
 
             
     def ParseStatement(self):
-        #At the moment we only have assignment statements .... you'll need to add more for the assignment - branching depends on the token type
-        return self.ParseDeclaration()
+        if self.crtToken.type == lex.TokenType.let:
+            return self.ParseDeclaration()  # e.g., `let x = 5`
+        elif self.crtToken.type == lex.TokenType.rtrn:
+            return self.ParseReturn()  # e.g., `if (x) { ... }`
+        # # elif self.crtToken.type == lex.TokenType.keyword_while:
+        # #     return self.ParseWhileLoop()    # e.g., `while (x) { ... }`
+        # elif self.crtToken.type == lex.TokenType.identifier:
+        #     return self.ParseAssignment()   # e.g., `x = 10`
+        elif self.IsStartOfSimpleExpression():
+            return self.ParseExpression() # Wrap in expression statement
+
+        else:
+            raise SyntaxError(f"Unexpected token: {self.crtToken.type}")
 
 
     def ParseProgram(self):                        
@@ -260,7 +295,8 @@ class Parser:
 
 
 #parser = Parser("x=23;")
-parser = Parser("  let float  :   x=  3.2 * 4.3;")
+#parser = Parser(" not 1 * 2 > 3 * 4 * 5 * 6 > 7 * 8 > not 9 * 10 > 11 * 12 * 13 * 14 > 15 * 16 ")
+parser = Parser("3 + 2")
 parser.Parse()
 
 print_visitor = ast.PrintNodesVisitor()

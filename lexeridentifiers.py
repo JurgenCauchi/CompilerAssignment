@@ -30,8 +30,9 @@ class TokenType(Enum):
     rcurly = 25
     lparen = 26
     rparen = 27
-    error = 24        # For invalid tokens
-    end = 25         # For end of input
+    not_kw = 28
+    error = 29        # For invalid tokens
+    end = 30         # For end of input
 
 # Class to represent a token with its type and actual text (lexeme)
 class Token:
@@ -173,6 +174,8 @@ class Lexer:
                 return Token(TokenType.padread, lexeme)
             elif lexeme == "__random_int":
                 return Token(TokenType.padrandom_int, lexeme)
+            elif lexeme == "not":
+                return Token(TokenType.not_kw, lexeme)
             else:
                 return Token(TokenType.identifier, lexeme)
         elif state == 2:  # Whitespace state
@@ -357,7 +360,7 @@ class Lexer:
 
 # Test the lexer
 lex = Lexer()
-toks = lex.GenerateTokens("let")
+toks = lex.GenerateTokens("not")
 
  #Print all found tokens
 for t in toks:

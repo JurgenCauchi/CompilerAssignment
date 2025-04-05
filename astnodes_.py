@@ -23,9 +23,19 @@ class ASTProgramNode(ASTNode):
 
 # Base class for all statement nodes (extends ASTNode)
 class ASTStatementNode(ASTNode):
-    def __init__(self):
+    def __init__(self ):
         super().__init__()
         self.name = "ASTStatementNode"
+
+    def accept(self, visitor):
+        visitor.visit_statement_node(self)
+
+
+class ASTUnaryNode(ASTNode):
+    def __init__(self, op, expr):
+        self.op = op  # '-' or 'not'
+        self.expr = expr          # an instance of Expr (AST node)
+    
 
 # Base class for all expression nodes (extends ASTNode)
 class ASTExpressionNode(ASTNode):
@@ -149,6 +159,17 @@ class ASTDeclarationNode(ASTStatementNode):
     def accept(self, visitor):
         visitor.visit_declaration_node(self)                
 
+class ASTReturnNode(ASTStatementNode):
+    def __init__(self, ast_return_node):
+        super().__init__()
+        self.name = "ASTReturnNode"
+        self.expr = ast_return_node      # Stores the type of the variabl
+
+    # Visitor pattern accept method
+    def accept(self, visitor):
+        visitor.visit_return_node(self)                
+
+
 # Node for blocks of statements (like { stmt1; stmt2; })
 class ASTBlockNode(ASTNode):
     def __init__(self):
@@ -230,7 +251,20 @@ class PrintNodesVisitor(ASTVisitor):
     # Decrease indentation level
     def dec_tab_count(self):
         self.tab_count -= 1
+
+    def visit_return_node(self, return_node):
+        self.node_count += 1
+        print('\t' * self.tab_count, "Return Statement:")
+        self.inc_tab_count()
         
+        if return_node.expr:  # Print return value if exists
+            return_node.expr.accept(self)
+        else:
+            print('\t' * self.tab_count, "(void)")
+            
+        self.dec_tab_count()
+
+
     # Visit an integer node
     def visit_integer_node(self, int_node):
         self.node_count += 1
