@@ -3,36 +3,43 @@ from enum import Enum
 
 # Define different types of tokens our lexer will recognize
 class TokenType(Enum):
-    let = 1
-    rtrn = 2
-    loop = 3
-    fun = 4 
-    identifier = 5    # For variable names, function names, etc.
-    whitespace = 6    # For spaces, tabs, etc.
-    booleanliteral = 7        # For values
-    integerliteral = 8
-    floatliteral = 9
-    colourliteral = 10
-    comma = 11     # For seperators/punctuator
-    mulop = 12
-    addop = 13
-    relop = 14
-    semicolon = 15
-    colon = 16
-    equals = 17
-    type = 18
-    as_kw = 19
-    padwidth = 20
-    padheight = 21
-    padread = 22
-    padrandom_int =23
-    lcurly = 24
-    rcurly = 25
-    lparen = 26
-    rparen = 27
-    not_kw = 28
-    error = 29        # For invalid tokens
-    end = 30         # For end of input
+    let =           1
+    rtrn =          2
+    for_kw =        3
+    while_kw =      4
+    if_kw =         5
+    else_kw =       6
+    fun =           7 
+    identifier =    8    # For variable names, function names, etc.
+    whitespace =    9    # For spaces, tabs, etc.
+    booleanliteral= 10        # For values
+    integerliteral= 11
+    floatliteral =  12
+    colourliteral = 13
+    comma =         14     # For seperators/punctuator
+    mulop =         15
+    addop =         16
+    relop =         17
+    semicolon =     18
+    colon =         19
+    equals =        20
+    type =          21
+    as_kw =         22
+    padwidth =      23
+    padheight =     24
+    padread =       25
+    padrandom_int = 26
+    print =         27
+    delay =         28
+    wrbox =         29
+    write =         30
+    lcurly =        31
+    rcurly =        32
+    lparen =        33
+    rparen =        34
+    not_kw =        35
+    error =         36       # For invalid tokens
+    end =           37         # For end of input
 
 # Class to represent a token with its type and actual text (lexeme)
 class Token:
@@ -74,6 +81,7 @@ class Lexer:
         # - On letter or underscore, go to state 1 (identifier)
         self.Tx[0][self.lexeme_list.index("letter")] = 1
         self.Tx[0][self.lexeme_list.index("_")] = 1
+        self.Tx[1][self.lexeme_list.index("_")] = 1
         
         # From state 1 (identifier):
         # - On letter or digit, stay in state 1
@@ -158,8 +166,14 @@ class Lexer:
                 return Token(TokenType.addop, lexeme)
             elif lexeme == "return":
                 return Token(TokenType.rtrn, lexeme)
-            elif lexeme in {"for","while"}:
-                return Token(TokenType.loop, lexeme)
+            elif lexeme == "for":
+                return Token(TokenType.for_kw, lexeme)
+            elif lexeme == "while":
+                return Token(TokenType.while_kw, lexeme)
+            elif lexeme == "if":
+                return Token(TokenType.if_kw, lexeme)
+            elif lexeme == "else":
+                return Token(TokenType.else_kw, lexeme)
             elif lexeme == "fun":
                 return Token(TokenType.fun, lexeme)
             elif lexeme == "let":
@@ -176,6 +190,14 @@ class Lexer:
                 return Token(TokenType.padrandom_int, lexeme)
             elif lexeme == "not":
                 return Token(TokenType.not_kw, lexeme)
+            elif lexeme == "__print":
+                return Token(TokenType.print, lexeme)
+            elif lexeme == "__delay":
+                return Token(TokenType.delay, lexeme)
+            elif lexeme == "__write_box":
+                return Token(TokenType.wrbox, lexeme)
+            elif lexeme == "__write":
+                return Token(TokenType.write, lexeme)
             else:
                 return Token(TokenType.identifier, lexeme)
         elif state == 2:  # Whitespace state
@@ -360,7 +382,7 @@ class Lexer:
 
 # Test the lexer
 lex = Lexer()
-toks = lex.GenerateTokens("not")
+toks = lex.GenerateTokens("__print")
 
  #Print all found tokens
 for t in toks:

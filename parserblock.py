@@ -60,6 +60,7 @@ class Parser:
             if  (declared_type != actual_type):  # Allow int->float
                 raise SyntaxError(f"Type mismatch: cannot assign {declared_type} to {actual_type} variable")
 
+
     def _get_expression_type(self, node):
         """Determine the type of an expression node"""
         if isinstance(node, ast.ASTIntegerNode):
@@ -204,12 +205,94 @@ class Parser:
             return ast.ASTExpressionNode(op='neg', right=right)
 
     def ParseReturn(self):
-        if self.crtToken.type != lex.TokenType.rtrn:
-            raise SyntaxError(f"Expected 'return' at start of the return statement, got {self.crtToken.lexeme}")
         self.NextToken()
         expr = self.ParseExpression()
         return ast.ASTReturnNode(expr)
+    
+    def ParsePrint(self):
+        if self.crtToken.type != lex.TokenType.print:
+            raise SyntaxError(f"Expected '__print' at start of the print statement, got {self.crtToken.lexeme}")
+        self.NextToken()
+        expr = self.ParseExpression()
+        return ast.ASTPrintNode(expr)
 
+    def ParseDelay(self):
+        if self.crtToken.type != lex.TokenType.delay:
+            raise SyntaxError(f"Expected '__delay' at start of the print statement, got {self.crtToken.lexeme}")
+        self.NextToken()
+        expr = self.ParseExpression()
+        return ast.ASTDelayNode(expr)
+    
+
+    def ParseForloop(self):
+        self.NextToken()
+        if self.crtToken.type != lex.TokenType.lparen:
+            raise SyntaxError(f"Expected '(' after for , got {self.crtToken.lexeme}")
+        
+        self.NextToken()
+        vardec = self.ParseDeclaration()
+
+        if self.crtToken.type != lex.TokenType.semicolon:
+            raise SyntaxError(f"Expected ';' after declaring variable , got {self.crtToken.lexeme}")
+        
+        self.NextToken()
+        expr = self.ParseExpression()
+
+        if self.crtToken.type != lex.TokenType.semicolon:
+            raise SyntaxError(f"Expected ';' after expression , got {self.crtToken.lexeme}")
+
+        self.NextToken()
+        assign = self.ParseAssignment()
+        
+        if self.crtToken.type != lex.TokenType.rparen:
+            raise SyntaxError(f"Expected ')' after assignming  , got {self.crtToken.lexeme}")
+        
+        self.NextToken()
+        block = self.ParseBlock()
+
+        return ast.ASTForNode(vardec,expr,assign,block)
+    
+    def ParseWrite(self):
+        expressions = []
+        self.NextToken()  # Consume 'write' or 'wrbox'
+        
+        # Parse first expression (required)
+        expressions.append(self.ParseExpression())
+        
+        # Parse additional comma-separated expressions
+        while self.crtToken.type == lex.TokenType.comma:
+            self.NextToken()  # Consume comma
+            expressions.append(self.ParseExpression())
+        
+        # Validate minimum number of expressions
+        if len(expressions) < 1:  # Or your required minimum
+            raise SyntaxError("Write statement requires at least one expression")
+        
+        print(len(expressions))
+        if len(expressions) != 3 and len(expressions) != 5 :   # Or your required minimum
+            raise SyntaxError("Write statement requires 3 or 5 expressions")
+        
+
+        
+        return ast.ASTWriteNode(expressions)
+
+    def ParseBlock(self):
+        if self.crtToken.type != lex.TokenType.lcurly:
+            raise SyntaxError(f"Expected '{{', got {self.crtToken.lexeme}")
+        self.NextToken()
+        
+        block = ast.ASTBlockNode()
+        while self.crtToken.type != lex.TokenType.rcurly:
+            stmt = self.ParseStatement()
+            if stmt is not None:  # Optional: Skip None
+                block.add_statement(stmt)
+        
+        if self.crtToken.type != lex.TokenType.rcurly:
+            raise SyntaxError(f"Expected '}}', got {self.crtToken.lexeme}")
+        self.NextToken()
+    
+        return block  # ← THIS WAS MISSING!
+    
     def ParseDeclaration(self):
         # 1. Expect 'let'
         if self.crtToken.type != lex.TokenType.let:
@@ -247,22 +330,68 @@ class Parser:
 
         # 8. Build and return AST node
         return ast.ASTDeclarationNode(declaration_type, declaration_lhs, declaration_rhs)
+    
+    def ParseAssignment(self):
+
+        # 1. Expect identifier (variable name)
+        if self.crtToken.type != lex.TokenType.identifier:
+            raise SyntaxError(f"Expected identifier after, got {self.crtToken.lexeme}")
+        assignment_lhs = ast.ASTVariableNode(self.crtToken.lexeme)
+        self.NextToken()
+
+        # 2. Expect '='
+        if self.crtToken.type != lex.TokenType.equals:
+            raise SyntaxError(f"Expected '=' after variable name, got {self.crtToken.lexeme}")
+        self.NextToken()
+
+        # 3. Parse the right-hand side expression
+        assignment_rhs = self.ParseExpression()
+
+
+        # 4. Build and return AST node
+        return ast.ASTAssignmentNode(assignment_lhs, assignment_rhs)
+
 
             
     def ParseStatement(self):
-        if self.crtToken.type == lex.TokenType.let:
-            return self.ParseDeclaration()  # e.g., `let x = 5`
-        elif self.crtToken.type == lex.TokenType.rtrn:
-            return self.ParseReturn()  # e.g., `if (x) { ... }`
-        # # elif self.crtToken.type == lex.TokenType.keyword_while:
-        # #     return self.ParseWhileLoop()    # e.g., `while (x) { ... }`
-        # elif self.crtToken.type == lex.TokenType.identifier:
-        #     return self.ParseAssignment()   # e.g., `x = 10`
-        elif self.IsStartOfSimpleExpression():
-            return self.ParseExpression() # Wrap in expression statement
 
+        if self.crtToken.type == lex.TokenType.let:
+            stmt =  self.ParseDeclaration()
+            if self.crtToken.type != lex.TokenType.semicolon:
+                raise SyntaxError(f"Expected ';' after statement, got {self.crtToken.lexeme}")
+            return stmt #e.g., `let x = 5`
+        elif self.crtToken.type == lex.TokenType.rtrn:
+            stmt =  self.ParseReturn()
+            if self.crtToken.type != lex.TokenType.semicolon:
+                raise SyntaxError(f"Expected ';' after statement, got {self.crtToken.lexeme}")
+            return stmt #e.g., `let x = 5`
+        elif self.crtToken.type == lex.TokenType.print:
+            stmt =  self.ParsePrint()
+            if self.crtToken.type != lex.TokenType.semicolon:
+                raise SyntaxError(f"Expected ';' after statement, got {self.crtToken.lexeme}")
+            return stmt #e.g., `let x = 5`
+        elif self.crtToken.type == lex.TokenType.delay:
+            stmt =  self.ParseDelay()
+            if self.crtToken.type != lex.TokenType.semicolon:
+                raise SyntaxError(f"Expected ';' after statement, got {self.crtToken.lexeme}")
+            return stmt #e.g., `let x = 5` }`
+        elif self.crtToken.type == lex.TokenType.write or self.crtToken.type == lex.TokenType.wrbox:
+            stmt =  self.ParseWrite()
+            if self.crtToken.type != lex.TokenType.semicolon:
+                raise SyntaxError(f"Expected ';' after statement, got {self.crtToken.lexeme}")
+            return stmt #e.g., `let x = 5`
+        elif self.crtToken.type == lex.TokenType.for_kw:
+            stmt =  self.ParseForloop()
+            return stmt #e.g., `let x = 5`
+        elif self.crtToken.type == lex.TokenType.identifier:
+            stmt =  self.ParseAssignment()
+            if self.crtToken.type != lex.TokenType.semicolon:
+                raise SyntaxError(f"Expected ';' after statement, got {self.crtToken.lexeme}")
+            return stmt #e.g., `let x = 5`
         else:
             raise SyntaxError(f"Unexpected token: {self.crtToken.type}")
+        
+
 
 
     def ParseProgram(self):                        
@@ -296,7 +425,7 @@ class Parser:
 
 #parser = Parser("x=23;")
 #parser = Parser(" not 1 * 2 > 3 * 4 * 5 * 6 > 7 * 8 > not 9 * 10 > 11 * 12 * 13 * 14 > 15 * 16 ")
-parser = Parser("3 + 2")
+parser = Parser("for (let int:x = 5; 3 > 5; x = 3) {  x = 2 } let int:x = 2;")
 parser.Parse()
 
 print_visitor = ast.PrintNodesVisitor()

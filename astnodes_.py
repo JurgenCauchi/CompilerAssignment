@@ -169,6 +169,63 @@ class ASTReturnNode(ASTStatementNode):
     def accept(self, visitor):
         visitor.visit_return_node(self)                
 
+class ASTPrintNode(ASTStatementNode):
+    def __init__(self, ast_print_node):
+        super().__init__()
+        self.name = "ASTPrintNode"
+        self.expr = ast_print_node      # Stores the type of the variabl
+
+    # Visitor pattern accept method
+    def accept(self, visitor):
+        visitor.visit_print_node(self)    
+
+class ASTForNode(ASTStatementNode):
+    def __init__(self, ast_exp_node, ast_vardec_node, ast_ass_node, ast_blck_node):
+        super().__init__()
+        self.name = "ASTForNode"
+        self.vardeclr = ast_vardec_node    #stores the variable declaration 
+        self.expr = ast_exp_node      # Stores the expression
+        self.assgn = ast_ass_node
+        self.blck = ast_blck_node
+
+
+    # Visitor pattern accept method
+    def accept(self, visitor):
+        visitor.visit_for_node(self)    
+
+
+class ASTDelayNode(ASTStatementNode):
+    def __init__(self, ast_delay_node):
+        super().__init__()
+        self.name = "ASTdelayNode"
+        self.expr = ast_delay_node      # Stores the type of the variabl
+
+    # Visitor pattern accept method
+    def accept(self, visitor):
+        visitor.visit_delay_node(self)
+
+
+class ASTWriteNode(ASTStatementNode):
+    def __init__(self, expressions):  # Now takes a list
+        super().__init__()
+        self.name = "ASTWriteNode"
+        self.expressions = expressions  # List of AST nodes
+
+    def accept(self, visitor):
+        visitor.visit_write_node(self)    
+
+
+class ASTAssignmentNode(ASTStatementNode):
+    def __init__(self, ast_id_node, ast_assignment_node):
+        super().__init__()
+        self.name = "ASTAssignmentNode"
+        self.id = ast_id_node
+        self.expr = ast_assignment_node      # Stores the type of the variabl
+
+    # Visitor pattern accept method
+    def accept(self, visitor):
+        visitor.visit_assignment_node(self)                
+
 
 # Node for blocks of statements (like { stmt1; stmt2; })
 class ASTBlockNode(ASTNode):
@@ -264,6 +321,17 @@ class PrintNodesVisitor(ASTVisitor):
             
         self.dec_tab_count()
 
+    def visit_for_node(self, for_node):
+        self.node_count += 1
+        print('\t' * self.tab_count, "For loop Statement node => ")
+        self.inc_tab_count()    
+        for_node.expr.accept(self) 
+        for_node.vardeclr.accept(self) 
+        for_node.assgn.accept(self)
+        for_node.blck.accept(self)
+        self.dec_tab_count()
+            
+
 
     # Visit an integer node
     def visit_integer_node(self, int_node):
@@ -287,11 +355,43 @@ class PrintNodesVisitor(ASTVisitor):
         self.node_count += 1
         print('\t' * self.tab_count, "Declaration node => ")
         self.inc_tab_count()    
-        ass_node.type.accept(self)
         ass_node.id.accept(self)    # Visit the left-hand side
         ass_node.expr.accept(self)   # Visit the right-hand side
         self.dec_tab_count()
 
+    def visit_assignment_node(self, ass_node):
+        self.node_count += 1
+        print('\t' * self.tab_count, "Assignment node => ")
+        self.inc_tab_count()   
+        ass_node.id.accept(self)    # Visit the left-hand side
+        ass_node.expr.accept(self)   # Visit the right-hand side
+        self.dec_tab_count()
+
+    def visit_print_node(self, print_node):
+        self.node_count += 1
+        print('\t' * self.tab_count, "print node => ")
+        self.inc_tab_count()  
+        print_node.expr.accept(self)   # Visit the expression
+        self.dec_tab_count()
+
+    def visit_delay_node(self, delay_node):
+        self.node_count += 1
+        print('\t' * self.tab_count, "delay node => ")
+        self.inc_tab_count()  
+        delay_node.expr.accept(self)   # Visit the expression
+        self.dec_tab_count()
+
+    def visit_write_node(self, write_node):
+        self.node_count += 1
+        print('\t' * self.tab_count, "Write node =>")
+        self.inc_tab_count()
+        
+        for expr in write_node.expressions:
+            expr.accept(self)
+        
+        self.dec_tab_count()
+
+    # Visit a variable node
     # Visit a variable node
     def visit_variable_node(self, var_node):
         self.node_count += 1
