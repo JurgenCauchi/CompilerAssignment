@@ -38,8 +38,11 @@ class TokenType(Enum):
     lparen =        33
     rparen =        34
     not_kw =        35
-    error =         36       # For invalid tokens
-    end =           37         # For end of input
+    lsqr =          36
+    rsqr =          37
+    arrow =         38
+    error =         39       # For invalid tokens
+    end =           40        # For end of input
 
 # Class to represent a token with its type and actual text (lexeme)
 class Token:
@@ -51,17 +54,17 @@ class Token:
 class Lexer:
     def __init__(self):
         # Categories of characters we'll encounter
-        self.lexeme_list = ["_", ".", "#",";",":", "=","comma", "letter", "digit","{","}","(",")","mulop","addop","relop","boolean_value", "ws", "other"]
+        self.lexeme_list = ["_","-",">", ".", "#",";",":", "=","[","]","comma", "letter", "digit","{","}","(",")","mulop","addop","relop","boolean_value", "ws", "other"]
 
         self.type_list = {"int", "float" , "bool" , "colour" }
         
         self.boolean_list = {"true", "false"}
         
         # Possible states of our finite automaton
-        self.states_list = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 , 11, 12, 13, 14, 15, 16, 17, 18, 19]
+        self.states_list = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 , 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 , 21 , 22]
         
         # Which states are accepting (valid end states for tokens)
-        self.states_accp = [1, 2, 3, 4, 5, 7, 9 , 10, 11 ,12, 13, 14, 15, 16, 17, 18, 19]
+        self.states_accp = [1, 2, 3, 4, 5, 7, 9 , 10, 11 ,12, 13, 14, 15, 16, 17, 18, 19 , 20, 21 , 22]
 
         # Calculate dimensions for our transition table
         self.rows = len(self.states_list)
@@ -112,6 +115,8 @@ class Lexer:
         self.Tx[0][self.lexeme_list.index("addop")] = 13 
 
         self.Tx[0][self.lexeme_list.index("relop")] = 14
+        self.Tx[0][self.lexeme_list.index(">")] = 14
+
         self.Tx[14][self.lexeme_list.index("=")] = 15 
 
         # - From state 0, on # go to state 8
@@ -139,10 +144,15 @@ class Lexer:
         self.Tx[0][self.lexeme_list.index("(")] = 18
         self.Tx[0][self.lexeme_list.index(")")] = 19
 
+        self.Tx[0][self.lexeme_list.index("[")] = 20
+        self.Tx[0][self.lexeme_list.index("]")] = 21
 
-        # Print the transition table for debugging
-        for row in self.Tx:
-            print(row)
+        self.Tx[0][self.lexeme_list.index("-")] = 5
+        self.Tx[5][self.lexeme_list.index(">")] = 22
+
+        # # Print the transition table for debugging
+        # for row in self.Tx:
+        #     print(row)
 
     # Check if a given state is an accepting state
     def AcceptingStates(self, state):
@@ -235,6 +245,12 @@ class Lexer:
             return Token(TokenType.lparen, lexeme)
         elif state == 19:
             return Token(TokenType.rparen, lexeme)
+        elif state == 20:
+            return Token(TokenType.lsqr, lexeme)
+        elif state == 21:
+            return Token(TokenType.rsqr, lexeme)
+        elif state == 22:
+            return Token(TokenType.arrow, lexeme)
         else:
             return 'default result'
         
@@ -248,18 +264,19 @@ class Lexer:
         if character == ".": cat = "."  
         if character == "\"": cat = "\""
         if character == "#": cat = "#"
-        if character == " ": cat = "ws"      
+        if character.isspace(): cat = "ws"      
         if character == ";": cat = ";"
         if character == ":": cat = ":"
         if character == "=": cat = "="
-        if character == "->": cat = "->"
+        if character == "-": cat = "-"
+        if character == ">": cat = ">"
         if character == "}" : cat = "}"
         if character == "{" : cat = "{"
         if character == "(" : cat = "("
         if character == ")" : cat = ")"
         if character in {"*","/",}: cat = "mulop"
-        if character in {"+","-",}: cat = "addop"
-        if character in {"<",">","!"}: cat = "relop"
+        if character == "+": cat = "addop"
+        if character in {"<","!"}: cat = "relop"
         if character == ",": cat = "comma"
         return cat
 
@@ -382,7 +399,11 @@ class Lexer:
 
 # Test the lexer
 lex = Lexer()
-toks = lex.GenerateTokens("__print")
+toks = lex.GenerateTokens(""" 
+                
+                -> e
+                
+                """)
 
  #Print all found tokens
 for t in toks:

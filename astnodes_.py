@@ -65,6 +65,21 @@ class ASTExpressionNode(ASTNode):
         visitor.visit_expression_node(self)
 
 # Node for variables (extends expression node since variables can be used in expressions)
+class ASTFunctionDeclNode(ASTExpressionNode):
+    def __init__(self, ident,formalpar,type,intlit,block):
+        super().__init__()
+        self.name = "ASTFunctionDeclNode"
+        self.identifier = ident  
+        self.formalparams = formalpar
+        self.type = type
+        self.intlit = intlit
+        self.block = block
+
+    # Visitor pattern accept method
+    def accept(self, visitor):
+        visitor.visit_functiondecl_node(self)
+
+
 class ASTVariableNode(ASTExpressionNode):
     def __init__(self, lexeme):
         super().__init__()
@@ -74,6 +89,7 @@ class ASTVariableNode(ASTExpressionNode):
     # Visitor pattern accept method
     def accept(self, visitor):
         visitor.visit_variable_node(self)
+
 
 class ASTTypeNode(ASTExpressionNode):
     def __init__(self, lexeme):
@@ -192,6 +208,34 @@ class ASTForNode(ASTStatementNode):
     # Visitor pattern accept method
     def accept(self, visitor):
         visitor.visit_for_node(self)    
+
+
+class ASTIfNode(ASTStatementNode):
+    def __init__(self, ast_exp_node, ast_blocks,):
+        super().__init__()
+        self.name = "ASTIfNode"  
+        self.expr = ast_exp_node      # Stores the expression
+        self.blocks = ast_blocks
+
+
+
+    # Visitor pattern accept method
+    def accept(self, visitor):
+        visitor.visit_if_node(self)    
+
+class ASTWhileNode(ASTStatementNode):
+    def __init__(self, ast_exp_node, ast_block):
+        super().__init__()
+        self.name = "ASTWhileNode"  
+        self.expr = ast_exp_node      # Stores the expression
+        self.block = ast_block
+
+
+
+    # Visitor pattern accept method
+    def accept(self, visitor):
+        visitor.visit_while_node(self)    
+
 
 
 class ASTDelayNode(ASTStatementNode):
@@ -321,6 +365,32 @@ class PrintNodesVisitor(ASTVisitor):
             
         self.dec_tab_count()
 
+
+    def visit_functiondecl_node(self, function_node):
+        self.node_count += 1
+        print('\t' * self.tab_count, "Function Declaration Statement:")
+        self.inc_tab_count()
+        
+        # Handle strings directly
+        print('\t' * self.tab_count, "Identifier:", function_node.identifier)
+        print('\t' * self.tab_count, "Return Type:", function_node.type)
+
+        if function_node.intlit:
+            print('\t' * self.tab_count, "Array Size:", function_node.intlit)
+
+        if function_node.formalparams:
+            print('\t' * self.tab_count, "Parameters:")
+            self.inc_tab_count()
+            for param in function_node.formalparams:
+                print('\t' * self.tab_count, param)  # Or param.accept() if params are nodes
+            self.dec_tab_count()
+        else:
+            print('\t' * self.tab_count, "(void)")
+            
+        function_node.block.accept(self)  # block should be an AST node
+        
+        self.dec_tab_count()
+
     def visit_for_node(self, for_node):
         self.node_count += 1
         print('\t' * self.tab_count, "For loop Statement node => ")
@@ -331,7 +401,22 @@ class PrintNodesVisitor(ASTVisitor):
         for_node.blck.accept(self)
         self.dec_tab_count()
             
+    def visit_if_node(self, if_node):
+        self.node_count += 1
+        print('\t' * self.tab_count, "If Statement node => ")
+        self.inc_tab_count()    
+        if_node.expr.accept(self) 
+        for block in if_node.blocks:
+            block.accept(self)
+        self.dec_tab_count()
 
+    def visit_while_node(self, if_node):
+        self.node_count += 1
+        print('\t' * self.tab_count, "While Statement node => ")
+        self.inc_tab_count()    
+        if_node.expr.accept(self) 
+        if_node.block.accept(self)
+        self.dec_tab_count()
 
     # Visit an integer node
     def visit_integer_node(self, int_node):
