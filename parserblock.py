@@ -13,7 +13,7 @@ class Parser:
         #    print(t.type, t.lexeme)
         self.crtToken = lex.Token("", lex.TokenType.error)
         self.nextToken = lex.Token("", lex.TokenType.error)
-        self.ASTroot = ast.ASTProgramNode    
+        self.ASTroot = None   
 
     def IsStartOfSimpleExpression(self):
         # Tokens that can start an expression:
@@ -94,11 +94,11 @@ class Parser:
     def ParseSimpleExpr(self):
         left = self.ParseTerm()
 
-        while self.crtToken.type == lex.TokenType.addop:
+        while self.crtToken.type == lex.TokenType.addop or self.crtToken.type == lex.TokenType.minus:
             op = self.crtToken.lexeme
             self.NextToken()
             right = self.ParseTerm()
-            left = ast.ASTExpressionNode(op=op, left=left, right=right)
+            left = ast.ASTAddOpNode(op=op, left=left, right=right)
 
         return left
 
@@ -194,7 +194,7 @@ class Parser:
             op = self.crtToken.lexeme
             self.NextToken()
             right = self.ParseSimpleExpr()
-            left = ast.ASTExpressionNode(op=op, left=left, right=right)
+            left = ast.ASTRelOpNode(op=op, left=left, right=right)
 
         # Handle optional 'as' cast
         if self.crtToken.type == lex.TokenType.as_kw:
@@ -215,12 +215,13 @@ class Parser:
             op = self.crtToken.lexeme
             self.NextToken()
             right = self.ParseFactor()
-            left = ast.ASTExpressionNode(op=op, left=left, right=right)
+            left = ast.ASTMultiOpNode(op=op, left=left, right=right)
 
         return left
+    
     def ParseUnary(self):
         token = self.crtToken
-        if token.lexeme in ('-', 'not'):
+        if token.type == lex.TokenType.minus or token.type == lex.TokenType.not_kw:
             op = self.crtToken.lexeme
             right = self.ParseExpression()  # or parse the appropriate precedence level
             return ast.ASTUnaryNode(op,right)
@@ -259,11 +260,13 @@ class Parser:
         #Pad functions
         elif token.type == lex.TokenType.padread:
             self.NextToken()
-            return ast.ASTPadReadNode()
+            exprs = self.ParseRead()
+            return exprs
 
         elif token.type == lex.TokenType.padrandom_int:
             self.NextToken()
-            return ast.ASTPadRandINode()
+            expr = self.ParseRandInt()
+            return expr
 
         elif token.type == lex.TokenType.padwidth:
             self.NextToken()
@@ -283,7 +286,7 @@ class Parser:
             return expr
 
         # Unary negation (e.g. -x)
-        elif token.type == lex.TokenType.not_kw:
+        elif token.type == lex.TokenType.not_kw or token.type == lex.TokenType.minus:
             self.NextToken()
             right = self.ParseExpression()
             return ast.ASTExpressionNode(op='neg', right=right)
@@ -375,10 +378,32 @@ class Parser:
 
         return ast.ASTWhileNode(expr, block)
     
+
+    def ParseRead(self):
+        expressions = []
+        expressions.append(self.ParseExpression())
+        
+        if self.crtToken.type != lex.TokenType.comma:
+            raise SyntaxError(f"Expected ',' after expression, got {self.crtToken.lexeme}")
+        
+        self.NextToken()
+
+        expressions.append(self.ParseExpression())
+
+        return ast.ASTPadReadNode(expressions)
+    
+    def ParseRandInt(self):
+        expression = self.ParseExpression()
+
+        return ast.ASTPadRandINode(expression)
+        
+        
+
     def ParseWrite(self):
         expressions = []
         if self.crtToken.type == lex.TokenType.wrbox:
             # Parse first expression (required)
+            self.NextToken()
             expressions.append(self.ParseExpression())
             
             # Parse additional comma-separated expressions
@@ -396,6 +421,7 @@ class Parser:
             return ast.ASTWriteNode(expressions)
         
         elif self.crtToken.type == lex.TokenType.write:
+            self.NextToken()
             expressions.append(self.ParseExpression())
             
             # Parse additional comma-separated expressions
@@ -430,7 +456,7 @@ class Parser:
         self.NextToken()
 
     
-        return block  # ← THIS WAS MISSING!
+        return block 
     
     def ParseDeclaration(self):
         # 1. Expect 'let'
@@ -494,7 +520,6 @@ class Parser:
         stmt = None
         if self.crtToken.type == lex.TokenType.let:
             stmt = self.ParseDeclaration()
-            self.NextToken()
             if self.crtToken.type != lex.TokenType.semicolon:
                 raise SyntaxError(f"Expected ; got: {self.crtToken.type}")
         elif self.crtToken.type == lex.TokenType.rtrn:
@@ -504,17 +529,14 @@ class Parser:
                 raise SyntaxError(f"Expected ; got: {self.crtToken.type}")
         elif self.crtToken.type == lex.TokenType.print:
             stmt = self.ParsePrint()
-            self.NextToken()
             if self.crtToken.type != lex.TokenType.semicolon:
                 raise SyntaxError(f"Expected ; got: {self.crtToken.type}")
         elif self.crtToken.type == lex.TokenType.delay:
             stmt = self.ParseDelay()
-            self.NextToken()
             if self.crtToken.type != lex.TokenType.semicolon:
                 raise SyntaxError(f"Expected ; got: {self.crtToken.type}")
         elif self.crtToken.type in (lex.TokenType.write, lex.TokenType.wrbox):
             stmt = self.ParseWrite()
-            self.NextToken()
             if self.crtToken.type != lex.TokenType.semicolon:
                 raise SyntaxError(f"Expected ; got: {self.crtToken.type}")
         elif self.crtToken.type == lex.TokenType.for_kw:
@@ -522,7 +544,8 @@ class Parser:
             return stmt  # Block statement - no semicolon needed
         elif self.crtToken.type == lex.TokenType.identifier:
             stmt = self.ParseAssignment()
-            self.NextToken()
+            if self.crtToken.type != lex.TokenType.semicolon:
+                raise SyntaxError(f"Expected ; got: {self.crtToken.type}")
         elif self.crtToken.type == lex.TokenType.if_kw:
             stmt = self.ParseIf()
         elif self.crtToken.type == lex.TokenType.while_kw:
@@ -567,17 +590,14 @@ class Parser:
 
     def Parse(self):        
         self.ASTroot = self.ParseProgram()
+        return self.ASTroot  
 
 #parser = Parser(" not 1 * 2 > 3 * 4 * 5 * 6 > 7 * 8 > not 9 * 10 > 11 * 12 * 13 * 14 > 15 * 16 ")
 #parser = Parser("for (let int:x = 5; 3 > 5; x = 3) {  x = 2; } let int:x = 2;")
 
 parser = Parser(""" 
                 
-                fun x (y: int, sd: bool) -> int {
-                x = 5;
-                }
-                
-                """)
+                x = __random_int 5;   """)
 
 parser.Parse()
 

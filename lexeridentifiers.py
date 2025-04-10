@@ -41,8 +41,9 @@ class TokenType(Enum):
     lsqr =          36
     rsqr =          37
     arrow =         38
-    error =         39       # For invalid tokens
-    end =           40        # For end of input
+    minus =         39
+    error =         40       # For invalid tokens
+    end =           41        # For end of input
 
 # Class to represent a token with its type and actual text (lexeme)
 class Token:
@@ -61,10 +62,10 @@ class Lexer:
         self.boolean_list = {"true", "false"}
         
         # Possible states of our finite automaton
-        self.states_list = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 , 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 , 21 , 22]
+        self.states_list = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 , 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 , 21 , 22,23]
         
         # Which states are accepting (valid end states for tokens)
-        self.states_accp = [1, 2, 3, 4, 5, 7, 9 , 10, 11 ,12, 13, 14, 15, 16, 17, 18, 19 , 20, 21 , 22]
+        self.states_accp = [1, 2, 3, 4, 5, 7, 9 , 10, 11 ,12, 13, 14, 15, 16, 17, 18, 19 , 20, 21 , 22 ,23]
 
         # Calculate dimensions for our transition table
         self.rows = len(self.states_list)
@@ -147,9 +148,10 @@ class Lexer:
         self.Tx[0][self.lexeme_list.index("[")] = 20
         self.Tx[0][self.lexeme_list.index("]")] = 21
 
-        self.Tx[0][self.lexeme_list.index("-")] = 5
-        self.Tx[5][self.lexeme_list.index(">")] = 22
+        self.Tx[0][self.lexeme_list.index("-")] = 22
+        self.Tx[22][self.lexeme_list.index(">")] = 23
 
+  
         # # Print the transition table for debugging
         # for row in self.Tx:
         #     print(row)
@@ -250,6 +252,8 @@ class Lexer:
         elif state == 21:
             return Token(TokenType.rsqr, lexeme)
         elif state == 22:
+            return Token(TokenType.minus, lexeme)
+        elif state == 23:
             return Token(TokenType.arrow, lexeme)
         else:
             return 'default result'
@@ -397,11 +401,11 @@ class Lexer:
 
         return tokens_list
 
-# Test the lexer
+# # Test the lexer
 lex = Lexer()
 toks = lex.GenerateTokens(""" 
                 
-                -> e
+                __random_int
                 
                 """)
 

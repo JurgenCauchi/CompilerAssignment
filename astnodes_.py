@@ -5,6 +5,7 @@ class ASTNode:
     def __init__(self):
         self.name = "ASTNode"  # Identifier for the node type
 
+
 # Node for the entire program (extends ASTNode)
 class ASTProgramNode(ASTNode):
     def __init__(self):
@@ -135,7 +136,31 @@ class ASTColourNode(ASTExpressionNode):
     
     # Visitor pattern accept method
     def accept(self, visitor):
-        visitor.visit_colour_node(self)    
+        visitor.visit_colour_node(self)   
+
+
+class ASTPadWidthNode(ASTExpressionNode):
+    def __init__(self):
+        super().__init__()
+        self.name = "ASTPadWidthNode"
+
+
+    
+    # Visitor pattern accept method
+    def accept(self, visitor):
+        visitor.visit_padwidth_node(self)     
+
+
+class ASTPadHeightNode(ASTExpressionNode):
+    def __init__(self):
+        super().__init__()
+        self.name = "ASTPadHeightNode"
+
+
+    
+    # Visitor pattern accept method
+    def accept(self, visitor):
+        visitor.visit_padheight_node(self)     
 
 class ASTBooleanNode(ASTExpressionNode):
     def __init__(self, v):
@@ -152,7 +177,7 @@ class ASTBooleanNode(ASTExpressionNode):
 class ASTMultiOpNode(ASTExpressionNode):
     def __init__(self, op, left, right):
         super().__init__()
-        self.name = "ASTBinaryOpNode"
+        self.name = "ASTMultiOpNode"
         self.op = op          # The operator (e.g., "*", "/", "and")
         self.left = left      # Left operand (ASTExpressionNode)
         self.right = right    # Right operand (ASTExpressionNode)
@@ -161,6 +186,25 @@ class ASTMultiOpNode(ASTExpressionNode):
     def accept(self, visitor):
         visitor.visit_multi_op_node(self)
 
+class ASTAddOpNode(ASTExpressionNode):
+    def __init__(self, op, left, right):
+        self.name = "ASTAddOpNode"
+        self.left = left        # ASTExpressionNode
+        self.op = op  # str like '+', '-'
+        self.right = right      # ASTExpressionNode
+
+    def accept(self, visitor):
+        visitor.visit_add_op_node(self)
+
+class ASTRelOpNode(ASTExpressionNode):
+    def __init__(self, op, left, right):
+        self.name = "ASTRelOpNode"
+        self.left = left        # ASTExpressionNode
+        self.op = op  # str like '+', '-'
+        self.right = right      # ASTExpressionNode
+
+    def accept(self, visitor):
+        visitor.visit_rel_op_node(self)
 
 # Node for assignment statements (extends statement node)
 class ASTDeclarationNode(ASTStatementNode):
@@ -258,6 +302,24 @@ class ASTWriteNode(ASTStatementNode):
     def accept(self, visitor):
         visitor.visit_write_node(self)    
 
+
+class ASTPadReadNode(ASTStatementNode):
+    def __init__(self, expressions):  # Now takes a list
+        super().__init__()
+        self.name = "ASTPadReadNode"
+        self.expressions = expressions  # List of AST nodes
+
+    def accept(self, visitor):
+        visitor.visit_padread_node(self)   
+
+class ASTPadRandINode(ASTStatementNode):
+    def __init__(self, expressions):  # Now takes a list
+        super().__init__()
+        self.name = "ASTPadRandINode"
+        self.expr = expressions  # List of AST nodes
+
+    def accept(self, visitor):
+        visitor.visit_padrandi_node(self)   
 
 class ASTAssignmentNode(ASTStatementNode):
     def __init__(self, ast_id_node, ast_assignment_node):
@@ -435,6 +497,14 @@ class PrintNodesVisitor(ASTVisitor):
         self.node_count += 1
         print('\t' * self.tab_count, "Boolean value::", boolean_node.value)
 
+    def visit_padwidth_node(self, padwidth_node):
+        self.node_count += 1
+        print('\t' * self.tab_count, "Pad Width")
+    
+    def visit_padheight_node(self, padheight_node):
+        self.node_count += 1
+        print('\t' * self.tab_count, "Pad Height")
+
     # Visit an assignment node
     def visit_declaration_node(self, ass_node):
         self.node_count += 1
@@ -476,7 +546,27 @@ class PrintNodesVisitor(ASTVisitor):
         
         self.dec_tab_count()
 
-    # Visit a variable node
+
+    def visit_padread_node(self, padread_node):
+        self.node_count += 1
+        print('\t' * self.tab_count, "Pad Read node =>")
+        self.inc_tab_count()
+        
+        for expr in padread_node.expressions:
+            expr.accept(self)
+        
+        self.dec_tab_count()
+
+
+    def visit_padrandi_node(self, padrandi_node):
+        self.node_count += 1
+        print('\t' * self.tab_count, "Pad Rand node =>")
+        self.inc_tab_count()
+        
+        padrandi_node.expr.accept(self)
+        
+        self.dec_tab_count()
+
     # Visit a variable node
     def visit_variable_node(self, var_node):
         self.node_count += 1
@@ -512,6 +602,59 @@ class PrintNodesVisitor(ASTVisitor):
     def visit_type_node(self, type_node):
         self.node_count += 1
         print('\t' * self.tab_count, "Type => ", type_node.lexeme)
+
+    
+
+    def visit_add_op_node(self, type_node):
+        self.node_count += 1
+        print('\t' * self.tab_count, "Additive Operation => ", type_node.op)
+        self.tab_count += 1
+        if hasattr(type_node, 'left') and type_node.left:
+            print('\t' * self.tab_count, "Left:")
+            self.tab_count += 1
+            type_node.left.accept(self)
+            self.tab_count -= 1
+
+        # Right side
+        if hasattr(type_node, 'right') and type_node.right:
+            print('\t' * self.tab_count, "Right:")
+            self.tab_count += 1
+            type_node.right.accept(self)
+            self.tab_count -= 1
+
+    def visit_rel_op_node(self, type_node):
+        self.node_count += 1
+        print('\t' * self.tab_count, "Relational Operation => ", type_node.op)
+        self.tab_count += 1
+        if hasattr(type_node, 'left') and type_node.left:
+            print('\t' * self.tab_count, "Left:")
+            self.tab_count += 1
+            type_node.left.accept(self)
+            self.tab_count -= 1
+
+        # Right side
+        if hasattr(type_node, 'right') and type_node.right:
+            print('\t' * self.tab_count, "Right:")
+            self.tab_count += 1
+            type_node.right.accept(self)
+            self.tab_count -= 1
+
+    def visit_multi_op_node(self, type_node):
+        self.node_count += 1
+        print('\t' * self.tab_count, "Mulitplicative Operation => ", type_node.op)
+        self.tab_count += 1
+        if hasattr(type_node, 'left') and type_node.left:
+            print('\t' * self.tab_count, "Left:")
+            self.tab_count += 1
+            type_node.left.accept(self)
+            self.tab_count -= 1
+
+        # Right side
+        if hasattr(type_node, 'right') and type_node.right:
+            print('\t' * self.tab_count, "Right:")
+            self.tab_count += 1
+            type_node.right.accept(self)
+            self.tab_count -= 1
 
     # Visit a block node
     def visit_block_node(self, block_node):
