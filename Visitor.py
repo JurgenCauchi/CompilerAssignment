@@ -6,8 +6,8 @@ class Visitor:
         
         if visitor_method is not None:
             return visitor_method(node)
-        
-    
+        else:
+            return None   
 
 class TypeChecker(Visitor):
     def __init__(self):
@@ -34,7 +34,6 @@ class TypeChecker(Visitor):
             if name in scope:
                 return scope[name]
         return None
-    
 
     def visit_ASTProgramNode(self, node):
         print(f"Checking program with {len(node.statements)} statements")
@@ -70,7 +69,6 @@ class TypeChecker(Visitor):
 
             self.declare_variable(var_name, var_type)
             
-
     def visit_ASTAssignmentNode(self, node):
 
         var_name = node.id.lexeme
@@ -111,6 +109,39 @@ class TypeChecker(Visitor):
 
         self.exit_scope()  # Exit the outer scope after the loop ends
 
+    def visit_ASTWhileNode(self, node):
+        """Type-check a for loop: for(init; condition; update) { body }"""
+        
+        self.enter_scope()
+
+        # 1. Check condition (e.g., 'x < 10')
+        if node.expr:
+            self.visit(node.expr)  # This will trigger visit_ASTRelOpNode
+
+        # 2. Check body (e.g., '{ let int n = 6 }')
+        if node.block:
+            self.enter_scope()  # New scope for loop variables (inside the body)
+            self.visit(node.block)
+            self.exit_scope()  # Exit after the body
+
+        self.exit_scope()  # Exit the outer scope after the loop ends
+
+    def visit_ASTIfNode(self, node):
+        """Type-check a for loop: for(init; condition; update) { body }"""
+
+        self.enter_scope()
+
+        # 1. Check condition (e.g., 'x < 10')
+        if node.expr:
+            self.visit(node.expr)  # This will trigger visit_ASTRelOpNode
+
+        # 2. Check body (e.g., '{ let int n = 6 }')
+        if node.blocks:
+            self.enter_scope()  # New scope for loop variables (inside the body)
+            self.visit(node.blocks)
+            self.exit_scope()  # Exit after the body
+
+        self.exit_scope()  # Exit the outer scope after the loop ends
 
     def visit_ASTBlockNode(self, node):
         self.enter_scope()
@@ -123,7 +154,6 @@ class TypeChecker(Visitor):
         print(f"Type checking program with {len(node.statements)} statements")  # Debug
         for statement in node.statements:
             self.visit(statement)
-
 
     def visit_ASTAddOpNode(self, node):
         
@@ -148,8 +178,6 @@ class TypeChecker(Visitor):
             return "error"
         
         return left_type
-
-
 
     def visit_ASTMultiOpNode(self, node):
         """Handle binary operations like +, -, *, /"""
@@ -214,11 +242,10 @@ class TypeChecker(Visitor):
 # Assuming you have an AST root node from your parser
 
 parser = par.Parser(""" 
-                
-           for (let int: x =0 ;x <1 ;x=x +4){
-                    
-                    x=5;
-}
+
+            { let int:x = 0;
+           while(x==5){
+                    }}
 
                 """)
 

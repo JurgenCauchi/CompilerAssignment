@@ -259,8 +259,6 @@ class ASTIfNode(ASTStatementNode):
         self.expr = ast_exp_node      # Stores the expression
         self.blocks = ast_blocks
 
-
-
     # Visitor pattern accept method
     def accept(self, visitor):
         visitor.visit_if_node(self)    

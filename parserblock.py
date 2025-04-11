@@ -196,7 +196,7 @@ class Parser:
             right = self.ParseSimpleExpr()
             left = ast.ASTRelOpNode(op=op, left=left, right=right)
         
-
+        
         # Handle optional 'as' cast
         if self.crtToken.type == lex.TokenType.as_kw:
             self.NextToken()
@@ -349,7 +349,7 @@ class Parser:
         
         self.NextToken()
         expr = self.ParseExpression()
-        
+
         if self.crtToken.type != lex.TokenType.rparen:
             raise SyntaxError(f"Expected ')' after expression, got {self.crtToken.lexeme}")
         
@@ -575,9 +575,9 @@ class Parser:
         # Parse all statements until end of input
         while self.crtToken.type != lex.TokenType.end:
             # Skip any extra semicolons between statements
-            while self.crtToken.type == lex.TokenType.semicolon:
-                self.NextToken()
-                continue
+            # while self.crtToken.type == lex.TokenType.semicolon:
+            #     self.NextToken()
+            #     continue
                 
             # Parse the statement
             stmt = self.ParseStatement()
@@ -605,11 +605,9 @@ class Parser:
 #parser = Parser(" not 1 * 2 > 3 * 4 * 5 * 6 > 7 * 8 > not 9 * 10 > 11 * 12 * 13 * 14 > 15 * 16 ")
 #parser = Parser("for (let int:x = 5; 3 > 5; x = 3) {  x = 2; } let int:x = 2;")
 
-parser = Parser(""" 
-                
-            {let int:x = 0;
-            x = x + 1;}
-
+parser = Parser("""if(x==4) {
+                    x=2;
+                    }
 
                 """)
 
