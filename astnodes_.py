@@ -198,10 +198,8 @@ class ASTAddOpNode(ASTExpressionNode):
 
 class ASTRelOpNode(ASTExpressionNode):
     def __init__(self, op, left, right):
+        super().__init__(op=op, left=left, right=right)
         self.name = "ASTRelOpNode"
-        self.left = left        # ASTExpressionNode
-        self.op = op  # str like '+', '-'
-        self.right = right      # ASTExpressionNode
 
     def accept(self, visitor):
         visitor.visit_rel_op_node(self)
@@ -240,11 +238,11 @@ class ASTPrintNode(ASTStatementNode):
         visitor.visit_print_node(self)    
 
 class ASTForNode(ASTStatementNode):
-    def __init__(self, ast_exp_node, ast_vardec_node, ast_ass_node, ast_blck_node):
+    def __init__(self, ast_vardec_node, ast_expr_node, ast_ass_node, ast_blck_node):
         super().__init__()
         self.name = "ASTForNode"
-        self.vardeclr = ast_vardec_node    #stores the variable declaration 
-        self.expr = ast_exp_node      # Stores the expression
+        self.expr = ast_expr_node    #stores the variable declaration 
+        self.vardec = ast_vardec_node      # Stores the expression
         self.assgn = ast_ass_node
         self.blck = ast_blck_node
 
@@ -322,11 +320,11 @@ class ASTPadRandINode(ASTStatementNode):
         visitor.visit_padrandi_node(self)   
 
 class ASTAssignmentNode(ASTStatementNode):
-    def __init__(self, ast_id_node, ast_assignment_node):
+    def __init__(self, ast_id_node, ast_expr_node):
         super().__init__()
         self.name = "ASTAssignmentNode"
         self.id = ast_id_node
-        self.expr = ast_assignment_node      # Stores the type of the variabl
+        self.expr = ast_expr_node      # Stores the type of the variabl
 
     # Visitor pattern accept method
     def accept(self, visitor):

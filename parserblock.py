@@ -195,6 +195,7 @@ class Parser:
             self.NextToken()
             right = self.ParseSimpleExpr()
             left = ast.ASTRelOpNode(op=op, left=left, right=right)
+        
 
         # Handle optional 'as' cast
         if self.crtToken.type == lex.TokenType.as_kw:
@@ -443,7 +444,7 @@ class Parser:
         if self.crtToken.type != lex.TokenType.lcurly:
             raise SyntaxError(f"Expected '{{', got {self.crtToken.lexeme}")
         self.NextToken()
-
+        
         block = ast.ASTBlockNode()
         while self.crtToken.type != lex.TokenType.rcurly:        
             stmt = self.ParseStatement()
@@ -452,6 +453,7 @@ class Parser:
 
         if self.crtToken.type != lex.TokenType.rcurly:
             raise SyntaxError(f"Expected '}}', got {self.crtToken.lexeme}")
+
 
         self.NextToken()
 
@@ -522,23 +524,28 @@ class Parser:
             stmt = self.ParseDeclaration()
             if self.crtToken.type != lex.TokenType.semicolon:
                 raise SyntaxError(f"Expected ; got: {self.crtToken.type}")
+            self.NextToken()
         elif self.crtToken.type == lex.TokenType.rtrn:
             stmt = self.ParseReturn()
             self.NextToken()
             if self.crtToken.type != lex.TokenType.semicolon:
                 raise SyntaxError(f"Expected ; got: {self.crtToken.type}")
+            self.NextToken()
         elif self.crtToken.type == lex.TokenType.print:
             stmt = self.ParsePrint()
             if self.crtToken.type != lex.TokenType.semicolon:
                 raise SyntaxError(f"Expected ; got: {self.crtToken.type}")
+            self.NextToken()
         elif self.crtToken.type == lex.TokenType.delay:
             stmt = self.ParseDelay()
             if self.crtToken.type != lex.TokenType.semicolon:
                 raise SyntaxError(f"Expected ; got: {self.crtToken.type}")
+            self.NextToken()
         elif self.crtToken.type in (lex.TokenType.write, lex.TokenType.wrbox):
             stmt = self.ParseWrite()
             if self.crtToken.type != lex.TokenType.semicolon:
                 raise SyntaxError(f"Expected ; got: {self.crtToken.type}")
+            self.NextToken()
         elif self.crtToken.type == lex.TokenType.for_kw:
             stmt = self.ParseForloop()
             return stmt  # Block statement - no semicolon needed
@@ -546,12 +553,15 @@ class Parser:
             stmt = self.ParseAssignment()
             if self.crtToken.type != lex.TokenType.semicolon:
                 raise SyntaxError(f"Expected ; got: {self.crtToken.type}")
+            self.NextToken()
         elif self.crtToken.type == lex.TokenType.if_kw:
             stmt = self.ParseIf()
         elif self.crtToken.type == lex.TokenType.while_kw:
             stmt = self.ParseWhile()
         elif self.crtToken.type == lex.TokenType.fun:
             stmt = self.ParseFuncDecl()
+        elif self.crtToken.type == lex.TokenType.lcurly:
+            stmt = self.ParseBlock()
         else:
             raise SyntaxError(f"Unexpected token: {self.crtToken.type}")
         
@@ -597,7 +607,11 @@ class Parser:
 
 parser = Parser(""" 
                 
-                x = __random_int 5;   """)
+            {let int:x = 0;
+            x = x + 1;}
+
+
+                """)
 
 parser.Parse()
 
