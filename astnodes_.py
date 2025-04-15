@@ -56,9 +56,7 @@ class ASTExpressionNode(ASTNode):
         self.cast_type = cast_type  # E.g. "int", "float", etc.
 
     def __str__(self):
-        if self.value is not None:
-            return f"Value({self.value})"
-        elif self.op is not None:
+        if self.op is not None:
             return f"({self.left} {self.op} {self.right})"
         return "Expression"
     # Visitor pattern accept method
@@ -218,11 +216,11 @@ class ASTDeclarationNode(ASTStatementNode):
         visitor.visit_declaration_node(self)                
 
 class ASTReturnNode(ASTStatementNode):
-    def __init__(self, ast_return_node):
+    def __init__(self, ast_expr_node,ast_return_type):
         super().__init__()
         self.name = "ASTReturnNode"
-        self.expr = ast_return_node      # Stores the type of the variabl
-
+        self.expr = ast_expr_node      # Stores the type of the variabl
+        self.returntypes = ast_return_type
     # Visitor pattern accept method
     def accept(self, visitor):
         visitor.visit_return_node(self)                
@@ -290,10 +288,12 @@ class ASTDelayNode(ASTStatementNode):
 
 
 class ASTWriteNode(ASTStatementNode):
-    def __init__(self, expressions):  # Now takes a list
+    def __init__(self, expressions,kw,size):  # Now takes a list
         super().__init__()
         self.name = "ASTWriteNode"
         self.expressions = expressions  # List of AST nodes
+        self.size = size
+        self.kw = kw
 
     def accept(self, visitor):
         visitor.visit_write_node(self)    

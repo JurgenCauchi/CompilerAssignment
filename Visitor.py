@@ -13,6 +13,8 @@ class TypeChecker(Visitor):
     def __init__(self):
         self.scopes = [{}]  # Tracks variable types
         self.errors = []  # Collect errors instead of raising immediately
+        self.funtype =[]
+        self.returns = []
 
     def current_scope(self):
         return self.scopes[-1]
@@ -85,6 +87,49 @@ class TypeChecker(Visitor):
 
         return var_type
 
+    def visit_ASTReturnNode(self,node):
+        
+        #add the value of the returntype to the list
+        if node.returntypes:
+            self.returns.extend(node.returntypes)
+        
+        if node.expr:
+            self.visit(node.expr)
+            #check if the return type matches declared return type
+            for returntype in self.returns:
+                if returntype not in self.funtype:
+                    self._add_error(f"Returned Value {returntype} and function type {self.funtype[0]} are not the same'")
+            self.returns.clear()
+
+    def visit_ASTFunctionDeclNode(self, node):
+            """Type-check a for loop: for(init; condition; update) { body }"""
+            # 1. Check initializer (e.g., 'let int i = 0')
+            self.enter_scope()
+
+            if node.identifier:
+                self.visit(node.identifier)
+
+            # 2. Check condition (e.g., 'x < 10')
+            if node.formalparams:
+                self.visit(node.formalparams)  # This will trigger visit_ASTRelOpNode
+                for formalparam in node.formalparams:
+                    self.declare_variable(formalparam[0],formalparam[1])
+            # 3. Check update (e.g., 'x = i + 1')
+            if node.type:
+                self.visit(node.type)
+                self.funtype.append(node.type)
+
+            # 4. Check body (e.g., '{ let int n = 6 }')
+            if node.block:
+                self.enter_scope()  # New scope for loop variables (inside the body)
+                for stmt in node.block.stmts:
+                    self.visit(stmt)
+                self.exit_scope()  # Exit after the body
+            
+            self.funtype.clear()
+            self.exit_scope()  # Exit the outer scope after the loop ends
+
+
     def visit_ASTForNode(self, node):
         """Type-check a for loop: for(init; condition; update) { body }"""
         # 1. Check initializer (e.g., 'let int i = 0')
@@ -136,12 +181,22 @@ class TypeChecker(Visitor):
             self.visit(node.expr)  # This will trigger visit_ASTRelOpNode
 
         # 2. Check body (e.g., '{ let int n = 6 }')
-        if node.blocks:
-            self.enter_scope()  # New scope for loop variables (inside the body)
-            self.visit(node.blocks)
-            self.exit_scope()  # Exit after the body
+        # 2. Visit the 'then' block (if it exists)
+        if node.blocks and len(node.blocks) > 0:
+            self.enter_scope()  # New scope for the 'then' block
+            then_block = node.blocks[0]
+            for stmt in then_block.stmts:  # Iterate through statements in the block
+                self.visit(stmt)  # This will visit any ASTReturnNode inside
+            self.exit_scope()
 
-        self.exit_scope()  # Exit the outer scope after the loop ends
+        # 3. Visit the 'else' block (if it exists)
+        if node.blocks and len(node.blocks) > 1:
+            self.enter_scope()  # New scope for the 'else' block
+            else_block = node.blocks[1]
+            for stmt in else_block.stmts:  # Iterate through statements in the block
+                self.visit(stmt)  # This will visit any ASTReturnNode inside
+            self.exit_scope()
+            self.exit_scope()  # Exit the outer scope after the loop ends
 
     def visit_ASTBlockNode(self, node):
         self.enter_scope()
@@ -192,6 +247,50 @@ class TypeChecker(Visitor):
         # Return the result type (could be more sophisticated)
         return left_type
     
+    def visit_ASTPrintNode(self,node):
+        expr = self.visit(node.expr)
+        return expr
+
+    def visit_ASTDelayNode(self,node):
+        expr = self.visit(node.expr)
+        return expr
+
+    def visit_ASTWriteNode(self, node):
+        # 1. Check argument count
+        if node.kw == 0 and node.size != 5:
+            self._add_error("Write Box must have exactly 5 arguments (x, y, width, height, colour)")
+        elif node.kw == 1 and node.size != 3:
+            self._add_error("Write must have exactly 3 arguments (x, y, colour)")
+
+        # 2. Check types of each argument
+        expected_types = []
+        if node.kw == 0:  # wrbox: (int, int, int, int, colour)
+            expected_types = ["int", "int", "int", "int", "colour"]
+            arg_names = ["x-coord", "y-coord", "width", "height", "colour"]
+        elif node.kw == 1:  # write: (int, int, colour)
+            expected_types = ["int", "int", "colour"]
+            arg_names = ["x-coord", "y-coord", "colour"]
+
+        # Ensure we have enough expected types (avoid index errors)
+        if len(node.expressions) != len(expected_types):
+            return  # Already handled by size check above
+        
+        for i in range(len(node.expressions)):
+            expr = node.expressions[i]
+            expected_type = expected_types[i]
+            actual_type = self.visit(expr)
+
+            if actual_type != expected_type:
+                self._add_error(
+                    f"Invalid type for {arg_names[i]} in {'wrbox' if node.kw == 0 else 'write'}: "
+                    f"Expected {expected_type}, got {actual_type}"
+                )
+
+    def visit_ASTPadHeightNode(self,node):
+        return "int"
+    
+    def visit_ASTPadWidthNode(self,node):
+        return "int"
 
     def visit_ASTRelOpNode(self, node):
         """Handle relational operations like <, >, =="""
@@ -243,9 +342,8 @@ class TypeChecker(Visitor):
 
 parser = par.Parser(""" 
 
-            { let int:x = 0;
-           while(x==5){
-                    }}
+    __write_box 1,2,#123456;
+
 
                 """)
 

@@ -63,12 +63,12 @@ class Parser:
 
     def _get_expression_type(self, node):
         """Determine the type of an expression node"""
-        if isinstance(node, ast.ASTIntegerNode):
+        if isinstance(node, ast.ASTIntegerNode) or isinstance(node,ast.ASTPadHeightNode) or isinstance(node,ast.ASTPadWidthNode) or isinstance(node,ast.ASTPadRandINode):
             return "int"
         elif isinstance(node, ast.ASTFloatNode):
             return "float"
         elif isinstance(node, ast.ASTBooleanNode):
-            return "boolean"
+            return "bool"
         elif isinstance(node, ast.ASTColourNode):
             return "colour"
         elif isinstance(node, ast.ASTMultiOpNode):
@@ -181,7 +181,7 @@ class Parser:
             self.NextToken()
             if self.crtToken.type != lex.TokenType.rsqr:
                 raise SyntaxError(f"Expected ] after identifier, got {self.crtToken.lexeme}")
-            self.nextToken()
+            self.NextToken()
         block = self.ParseBlock()
 
         return ast.ASTFunctionDeclNode(ident,formalparam,type,intlit,block)
@@ -293,13 +293,14 @@ class Parser:
             return ast.ASTExpressionNode(op='neg', right=right)
 
     def ParseReturn(self):
+        returntypes = []
         self.NextToken()
         expr = self.ParseExpression()
-        return ast.ASTReturnNode(expr)
+        returntypes.append(self._get_expression_type(expr))
+        #print(returntypes)
+        return ast.ASTReturnNode(expr,returntypes)
     
     def ParsePrint(self):
-        if self.crtToken.type != lex.TokenType.print:
-            raise SyntaxError(f"Expected '__print' at start of the print statement, got {self.crtToken.lexeme}")
         self.NextToken()
         expr = self.ParseExpression()
         return ast.ASTPrintNode(expr)
@@ -395,7 +396,7 @@ class Parser:
     
     def ParseRandInt(self):
         expression = self.ParseExpression()
-
+        self._validate_type_match("int",expression)
         return ast.ASTPadRandINode(expression)
         
         
@@ -403,41 +404,24 @@ class Parser:
     def ParseWrite(self):
         expressions = []
         if self.crtToken.type == lex.TokenType.wrbox:
-            # Parse first expression (required)
-            self.NextToken()
-            expressions.append(self.ParseExpression())
-            
-            # Parse additional comma-separated expressions
-            while self.crtToken.type == lex.TokenType.comma:
-                self.NextToken()  # Consume comma
-                expressions.append(self.ParseExpression())
-            
-            # Validate minimum number of expressions
-            if len(expressions) < 1:  # Or your required minimum
-                raise SyntaxError("Write box statement requires at least one expression")
-            
-            if len(expressions) != 5 :   # Or your required minimum
-                raise SyntaxError("Write box statement requires 5 expressions")
-            
-            return ast.ASTWriteNode(expressions)
-        
+            kw = 0
         elif self.crtToken.type == lex.TokenType.write:
-            self.NextToken()
-            expressions.append(self.ParseExpression())
-            
+            kw = 1
+            # Parse first expression (required)
+        self.NextToken()
+ 
+        expr = self.ParseExpression()
+        expressions.append(expr)
+        
             # Parse additional comma-separated expressions
-            while self.crtToken.type == lex.TokenType.comma:
-                self.NextToken()  # Consume comma
-                expressions.append(self.ParseExpression())
-            
+        while self.crtToken.type == lex.TokenType.comma:
+            self.NextToken()
+            expr = self.ParseExpression()
+            expressions.append(expr)
             # Validate minimum number of expressions
-            if len(expressions) < 1:  # Or your required minimum
-                raise SyntaxError("Write statement requires at least one expression")
-            
-            if len(expressions) != 3:   # Or your required minimum
-                raise SyntaxError("Write statement requires 3 expressions")
-            
-            return ast.ASTWriteNode(expressions)
+        size = len(expressions)
+        return ast.ASTWriteNode(expressions,kw,size)
+    
 
 
     def ParseBlock(self):
@@ -467,21 +451,22 @@ class Parser:
         self.NextToken()
 
         # 2. Expect a type
-        if self.crtToken.type != lex.TokenType.type:
-            raise SyntaxError(f"Expected type after 'let', got {self.crtToken.lexeme}")
-        declaration_type = ast.ASTTypeNode(self.crtToken.lexeme)
-        dec_type = self.crtToken.lexeme
+        if self.crtToken.type != lex.TokenType.identifier:
+            raise SyntaxError(f"Expected identifier after 'let', got {self.crtToken.lexeme}")
+        declaration_lhs = ast.ASTVariableNode(self.crtToken.lexeme)
         self.NextToken()
 
+       
         # 3. Expect colon ':'
         if self.crtToken.type != lex.TokenType.colon:
             raise SyntaxError(f"Expected ':' after type, got {self.crtToken.lexeme}")
         self.NextToken()
 
-        # 4. Expect identifier (variable name)
-        if self.crtToken.type != lex.TokenType.identifier:
-            raise SyntaxError(f"Expected identifier after ':', got {self.crtToken.lexeme}")
-        declaration_lhs = ast.ASTVariableNode(self.crtToken.lexeme)
+        # 4. Expect type(variable name)
+        if self.crtToken.type != lex.TokenType.type:
+            raise SyntaxError(f"Expected type after ':', got {self.crtToken.lexeme}")
+        declaration_type = ast.ASTTypeNode(self.crtToken.lexeme)
+        dec_type = self.crtToken.lexeme
         self.NextToken()
 
         # 5. Expect '='
@@ -527,7 +512,7 @@ class Parser:
             self.NextToken()
         elif self.crtToken.type == lex.TokenType.rtrn:
             stmt = self.ParseReturn()
-            self.NextToken()
+            #self.NextToken()
             if self.crtToken.type != lex.TokenType.semicolon:
                 raise SyntaxError(f"Expected ; got: {self.crtToken.type}")
             self.NextToken()
@@ -587,10 +572,10 @@ class Parser:
             # 1. Not at end of input
             # 2. Not a block statement (for/if/while)
             # 3. Next token isn't already a semicolon
-            if (self.crtToken.type != lex.TokenType.end and 
-                not isinstance(stmt, (ast.ASTForNode, ast.ASTBlockNode,ast.ASTIfNode)) and
-                self.crtToken.type != lex.TokenType.semicolon):
-                raise SyntaxError(f"Expected ';' after statement, got {self.crtToken.lexeme}")
+            # if (self.crtToken.type != lex.TokenType.end and 
+            #     not isinstance(stmt, (ast.ASTForNode, ast.ASTBlockNode,ast.ASTIfNode,ast.ASTFunctionDeclNode)) and
+            #     self.crtToken.type != lex.TokenType.semicolon):
+            #     raise SyntaxError(f"Expected ';' after statement, got {self.crtToken.lexeme}")
             
             # Consume the semicolon if present
             if self.crtToken.type == lex.TokenType.semicolon:
@@ -605,10 +590,43 @@ class Parser:
 #parser = Parser(" not 1 * 2 > 3 * 4 * 5 * 6 > 7 * 8 > not 9 * 10 > 11 * 12 * 13 * 14 > 15 * 16 ")
 #parser = Parser("for (let int:x = 5; 3 > 5; x = 3) {  x = 2; } let int:x = 2;")
 
-parser = Parser("""if(x==4) {
-                    x=2;
-                    }
+# parser = Parser(""" 
 
+#     fun Race(p1_c:colour, p2_c:colour, score_max:int) -> int {
+#         let p1_score:int = 0;
+#         let p2_score:int = 0;
+
+
+#         while ((p1_score < score_max) and (p2_score < score_max)) {
+#             let p1_toss:int = __randi 1000;
+#             let p2_toss:int = __randi 1000;
+
+#             if (p1_toss > p2_toss) {
+#             p1_score = p1_score + 1;
+#             __write 1, p1_score, p1_c;
+#             } else {
+#                 p2_score = p2_score + 1;
+#                 __write 2, p2_score, p2_c;
+#             }
+
+#             __delay 100;
+#  }
+
+#  if (p2_score > p1_score) {
+#  return 2;
+#  }
+
+#  return 1;
+#  }
+
+
+
+#                 """)
+
+
+parser = Parser("""
+                
+                __write 5,3,3,3,3,3,3;
                 """)
 
 parser.Parse()
