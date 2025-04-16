@@ -1,6 +1,9 @@
 import parserblock as par
 from SemanticVisitor import Visitor
 from SemanticVisitor import TypeChecker
+import pyperclip
+
+
 
 class CodeGenVisitor(Visitor):
     def __init__(self):
@@ -34,7 +37,9 @@ class CodeGenVisitor(Visitor):
             raise Exception("No scope available to declare a variable.")
         index = len(self.scopes[-1])  # Get the index for the variable in the current scope
         self.scopes[-1][name] = (self.level - 1, index)  # Store it in the scope
-        return self.level - 1, index
+        self.emit("push 1")
+        self.emit("oframe")
+        return self.level , index
     
     def lookup_variable(self, name):
         for lvl in reversed(range(len(self.scopes))):
@@ -44,6 +49,8 @@ class CodeGenVisitor(Visitor):
 
     def visit_ASTDeclarationNode(self, node):
         print(f"Visiting Declaration Node: {node.id.lexeme}")
+
+        level, index = self.declare_variable(node.id.lexeme)
         # Evaluate RHS expression (if exists)
         if node.expr:
             self.visit(node.expr)
@@ -51,7 +58,7 @@ class CodeGenVisitor(Visitor):
             self.emit("push 0")  # default init
 
         # Allocate var in current frame
-        level, index = self.declare_variable(node.id.lexeme)
+        
 
         # Store value in memory
         self.emit(f"push {index}")
@@ -61,7 +68,6 @@ class CodeGenVisitor(Visitor):
     def visit_ASTProgramNode(self, node):
 
         self.emit(".main")  # Emit the .main label at the beginning of the program
-
         # Start code generation for the program
         print(f"Generating code for program with {len(node.statements)} statements")
 
@@ -70,6 +76,12 @@ class CodeGenVisitor(Visitor):
         
         # Optionally, you can emit some final instructions like program end
         self.emit("halt")  # or some other end-of-program instruction if required
+
+    def visit_ASTBlockNode(self, node):
+        self.enter_scope()
+        for stmt in node.stmts:  # assumes `statements` is a list of AST nodes
+            self.visit(stmt)
+        self.exit_scope()
 
 
     def visit_ASTAssignmentNode(self, node):
@@ -81,7 +93,7 @@ class CodeGenVisitor(Visitor):
     
     def visit_ASTVariableNode(self, node):
         level, index = self.lookup_variable(node.lexeme)
-        self.emit(f"push[{index}:{level}]")
+        self.emit(f"push [{index}:{level}]")
 
     def visit_ASTIntegerNode(self, node):
         self.emit(f"push {node.value}")
@@ -96,8 +108,8 @@ class CodeGenVisitor(Visitor):
         self.emit(f"push {node.value}")
 
     def visit_ASTAddOpNode(self, node):
-        self.visit(node.left)
         self.visit(node.right)
+        self.visit(node.left)
         if node.op == "+":
             self.emit("add")
         elif node.op == "-":
@@ -111,16 +123,17 @@ class CodeGenVisitor(Visitor):
         elif node.op == "/":
             self.emit("div")
 
-    def visit_ASTComparisonNode(self, node):
+    def visit_ASTRelOpNode(self, node):
         self.visit(node.left)
         self.visit(node.right)
 
         ops = {
-            '<': "lt",
-            '<=': "le",
-            '>': "gt",
-            '>=': "ge",
-            '==': "eq"
+            '<': "le",
+            '<=': "lt",
+            '>': "ge",
+            '>=': "gt",
+            '==': "eq\nnot",
+            '!=': "eq"
         }
         self.emit(ops[node.op])
 
@@ -128,47 +141,78 @@ class CodeGenVisitor(Visitor):
         self.visit(node.expr)
         self.emit("not")
 
-
     def visit_ASTIfNode(self, node):
-        self.visit(node.cond)
-        else_label = f"label_else_{id(node)}"
-        end_label = f"label_end_{id(node)}"
-
-        # Conditional jump to else
-        self.emit(f"push #{else_label}")
-        self.emit("cjmp")
-
-        # Then block
-        for stmt in node.then_block:
-            self.visit(stmt)
+        # Evaluate the condition
+        self.visit(node.expr)
         
-        self.emit(f"push #{end_label}")
-        self.emit("jmp")
-
-        # Else block
-        self.emit(f"{else_label}:")
-        for stmt in node.else_block or []:
+        # Push the else block location (will be patched later)
+        self.emit("push# PC+0")  # Placeholder
+        else_jump_index = len(self.instructions) - 1
+        self.emit("cjmp")
+        
+        # Then block
+        for stmt in node.blocks[0].stmts:
             self.visit(stmt)
+            
+        # If there's an else block, handle it
+        if len(node.blocks) == 2:
+            # Push jump past else block (will be patched later)
+            self.emit("push #PC+0")  # Placeholder
+            end_jump_index = len(self.instructions) - 1
+            self.emit("jmp")
+            
+            # Patch the else jump location
+            else_location = len(self.instructions)
+            self.instructions[else_jump_index] = f"push #PC+{else_location - else_jump_index}"
+            
+            # Else block
+            for stmt in node.blocks[1].stmts:
+                self.visit(stmt)
+                
+            # Patch the end jump location
+            end_location = len(self.instructions)
+            self.instructions[end_jump_index] = f"push #PC+{end_location - end_jump_index}"
+        else:
+            # Patch the else jump location (just continue after then block)
+            end_location = len(self.instructions)
+            self.instructions[else_jump_index] = f"push #PC+{end_location - else_jump_index}"
 
-        self.emit(f"{end_label}:")
+    def visit_ASTReturnNode(self, node):
+        if node.expr:
+            self.visit(node.expr)  # Push value to return
+        if self.inside_function:
+            self.emit("ret")
+        else:
+            self.emit("halt")  # Ret not allowed in .main
 
     def visit_ASTWhileNode(self, node):
-        start_label = f"label_start_{id(node)}"
-        end_label = f"label_end_{id(node)}"
+        # Index where the condition starts
+        condition_start_index = len(self.instructions)
 
-        self.emit(f"{start_label}:")
-        self.visit(node.cond)
+        # Emit condition
+        self.visit(node.expr)
 
-        self.emit(f"push #{end_label}")
+        # Reserve space for push #PC+X (will be patched)
+        self.emit("push #")  # Placeholder for jump target
+        cjmp_index = len(self.instructions) - 1
         self.emit("cjmp")
 
-        for stmt in node.body:
+        # Loop body
+        for stmt in node.block.stmts:
             self.visit(stmt)
 
-        self.emit(f"push #{start_label}")
+        # Jump back to condition start (corrected offset)
+        current_index = len(self.instructions)
+        offset_to_condition = current_index - condition_start_index + 2  # +2 = push + jmp
+        self.emit(f"push #PC-{offset_to_condition}")
         self.emit("jmp")
 
-        self.emit(f"{end_label}:")
+        # Patch the forward jump in cjmp
+        after_loop_index = len(self.instructions)
+        forward_offset = after_loop_index - cjmp_index
+        self.instructions[cjmp_index] = f"push #PC+{forward_offset}"
+
+
 
     def visit_ASTWriteNode(self, node):
         for expr in reversed(node.expressions):
@@ -182,18 +226,20 @@ class CodeGenVisitor(Visitor):
 
 
     def visit_ASTFunctionDeclNode(self, node):
-        self.emit(f".{node.name.lexeme}")  # label for function
+        self.emit(f".{node.identifier}")  # label for function
         self.enter_scope()
-
+        self.inside_function = True
         # Add parameters to memory
-        for i, param in enumerate(node.params):
-            self.scopes[-1][param.lexeme] = (self.level - 1, i)
+        if node.formalparams:
+            for i, param in enumerate(node.formalparams):
+                self.scopes[-1][param] = (self.level - 1, i)
+                self.declare_variable(param)
 
         # Visit body
-        for stmt in node.body:
+        for stmt in node.block.stmts:
             self.visit(stmt)
 
-        self.emit("ret")
+        self.inside_function = False
         self.exit_scope()
 
     def visit_ASTFunctionCallNode(self, node):
@@ -208,10 +254,23 @@ class CodeGenVisitor(Visitor):
         self.emit("print")
 
 parser = par.Parser(""" 
+                    
+                 
+                    let x:int = 7;  
+                    if (x == 6){
+                    
+                    __print x;
+                    x = x-1;
+                    }
+                    else{
+                    __print 3;}
 
-    __write_box 5,3,10,6,#123456;
-
-
+                    
+                    
+                    
+                    
+                    
+                    
                 """)
 
 ast_root = parser.Parse()
@@ -233,5 +292,6 @@ generator = CodeGenVisitor()
 generator.visit(ast_root)
 
 print("\nGenerated Assembly-like Code:")
-print("\n".join(generator.instructions))
-
+code = "\n".join(generator.instructions)
+print(code)
+pyperclip.copy(code)

@@ -405,7 +405,13 @@ class Lexer:
 lex = Lexer()
 toks = lex.GenerateTokens(""" 
                 
-                __random_int
+                let x:int = 6;  
+                    if (x == 6){
+                    
+                    __print x;
+                    }
+                    else{
+                    __print 2;}
                 
                 """)
 

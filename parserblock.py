@@ -587,49 +587,18 @@ class Parser:
         self.ASTroot = self.ParseProgram()
         return self.ASTroot  
 
-#parser = Parser(" not 1 * 2 > 3 * 4 * 5 * 6 > 7 * 8 > not 9 * 10 > 11 * 12 * 13 * 14 > 15 * 16 ")
-#parser = Parser("for (let int:x = 5; 3 > 5; x = 3) {  x = 2; } let int:x = 2;")
-
-# parser = Parser(""" 
-
-#     fun Race(p1_c:colour, p2_c:colour, score_max:int) -> int {
-#         let p1_score:int = 0;
-#         let p2_score:int = 0;
-
-
-#         while ((p1_score < score_max) and (p2_score < score_max)) {
-#             let p1_toss:int = __randi 1000;
-#             let p2_toss:int = __randi 1000;
-
-#             if (p1_toss > p2_toss) {
-#             p1_score = p1_score + 1;
-#             __write 1, p1_score, p1_c;
-#             } else {
-#                 p2_score = p2_score + 1;
-#                 __write 2, p2_score, p2_c;
-#             }
-
-#             __delay 100;
-#  }
-
-#  if (p2_score > p1_score) {
-#  return 2;
-#  }
-
-#  return 1;
-#  }
-
-
-
+# parser = Parser("""
+                
+#                  let x:int = 6;  
+#                     if (y >= 6){
+                    
+#                     __print x;
+#                     }
+#                     else{
+#                     __print 2;}
 #                 """)
 
+# parser.Parse()
 
-parser = Parser("""
-                
-                __write 5,3,3,3,3,3,3;
-                """)
-
-parser.Parse()
-
-print_visitor = ast.PrintNodesVisitor()
-parser.ASTroot.accept(print_visitor)
+# print_visitor = ast.PrintNodesVisitor()
+# parser.ASTroot.accept(print_visitor)
