@@ -193,6 +193,11 @@ class ASTAddOpNode(ASTExpressionNode):
 
     def accept(self, visitor):
         visitor.visit_add_op_node(self)
+        
+class ASTCastNode(ASTExpressionNode):
+    def __init__(self, expr, to_type):
+        self.expr = expr  # The expression being casted
+        self.to_type = to_type  # The target type
 
 class ASTRelOpNode(ASTExpressionNode):
     def __init__(self, op, left, right):

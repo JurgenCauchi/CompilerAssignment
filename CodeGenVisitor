@@ -1,0 +1,237 @@
+import parserblock as par
+from SemanticVisitor import Visitor
+from SemanticVisitor import TypeChecker
+
+class CodeGenVisitor(Visitor):
+    def __init__(self):
+        self.instructions = []
+        self.scopes = [{}]  # memory stack (SoF), stores (level, index) for each variable
+        self.level = 0    # level in the SoF (stack of frames)
+
+    def visit(self, node):
+        """Dispatches the visit method based on the node type."""
+        method_name = f"visit_{type(node).__name__}"
+        visit_method = getattr(self, method_name, self.generic_visit)
+        return visit_method(node)
+
+    def generic_visit(self, node):
+        """Handle generic cases or nodes with no specific visit method."""
+        print(f"Visiting unhandled node type: {type(node).__name__}")
+
+    def emit(self, line):
+        self.instructions.append(line)
+
+    def enter_scope(self):
+        self.scopes.append({})
+        self.level += 1
+
+    def exit_scope(self):
+        self.scopes.pop()
+        self.level -= 1
+
+    def declare_variable(self, name):
+        if not self.scopes:
+            raise Exception("No scope available to declare a variable.")
+        index = len(self.scopes[-1])  # Get the index for the variable in the current scope
+        self.scopes[-1][name] = (self.level - 1, index)  # Store it in the scope
+        return self.level - 1, index
+    
+    def lookup_variable(self, name):
+        for lvl in reversed(range(len(self.scopes))):
+            if name in self.scopes[lvl]:
+                return lvl, self.scopes[lvl][name][1]
+        raise Exception(f"Variable '{name}' not found")
+
+    def visit_ASTDeclarationNode(self, node):
+        print(f"Visiting Declaration Node: {node.id.lexeme}")
+        # Evaluate RHS expression (if exists)
+        if node.expr:
+            self.visit(node.expr)
+        else:
+            self.emit("push 0")  # default init
+
+        # Allocate var in current frame
+        level, index = self.declare_variable(node.id.lexeme)
+
+        # Store value in memory
+        self.emit(f"push {index}")
+        self.emit(f"push {level}")
+        self.emit("st")
+
+    def visit_ASTProgramNode(self, node):
+
+        self.emit(".main")  # Emit the .main label at the beginning of the program
+
+        # Start code generation for the program
+        print(f"Generating code for program with {len(node.statements)} statements")
+
+        for stmt in node.statements:
+            self.visit(stmt)  # visit each statement (this will dispatch to the appropriate node handler)
+        
+        # Optionally, you can emit some final instructions like program end
+        self.emit("halt")  # or some other end-of-program instruction if required
+
+
+    def visit_ASTAssignmentNode(self, node):
+        self.visit(node.expr)
+        level, index = self.lookup_variable(node.id.lexeme)
+        self.emit(f"push {index}")
+        self.emit(f"push {level}")
+        self.emit("st")
+    
+    def visit_ASTVariableNode(self, node):
+        level, index = self.lookup_variable(node.lexeme)
+        self.emit(f"push[{index}:{level}]")
+
+    def visit_ASTIntegerNode(self, node):
+        self.emit(f"push {node.value}")
+
+    def visit_ASTFloatNode(self, node):
+        self.emit(f"push {node.value}")  # floats are stored as-is
+
+    def visit_ASTBooleanNode(self, node):
+        self.emit(f"push {1 if node.value else 0}")
+
+    def visit_ASTColourNode(self, node):
+        self.emit(f"push {node.value}")
+
+    def visit_ASTAddOpNode(self, node):
+        self.visit(node.left)
+        self.visit(node.right)
+        if node.op == "+":
+            self.emit("add")
+        elif node.op == "-":
+            self.emit("sub")
+
+    def visit_ASTMultiOpNode(self, node):
+        self.visit(node.left)
+        self.visit(node.right)
+        if node.op == "*":
+            self.emit("mul")
+        elif node.op == "/":
+            self.emit("div")
+
+    def visit_ASTComparisonNode(self, node):
+        self.visit(node.left)
+        self.visit(node.right)
+
+        ops = {
+            '<': "lt",
+            '<=': "le",
+            '>': "gt",
+            '>=': "ge",
+            '==': "eq"
+        }
+        self.emit(ops[node.op])
+
+    def visit_ASTUnaryNode(self, node):
+        self.visit(node.expr)
+        self.emit("not")
+
+
+    def visit_ASTIfNode(self, node):
+        self.visit(node.cond)
+        else_label = f"label_else_{id(node)}"
+        end_label = f"label_end_{id(node)}"
+
+        # Conditional jump to else
+        self.emit(f"push #{else_label}")
+        self.emit("cjmp")
+
+        # Then block
+        for stmt in node.then_block:
+            self.visit(stmt)
+        
+        self.emit(f"push #{end_label}")
+        self.emit("jmp")
+
+        # Else block
+        self.emit(f"{else_label}:")
+        for stmt in node.else_block or []:
+            self.visit(stmt)
+
+        self.emit(f"{end_label}:")
+
+    def visit_ASTWhileNode(self, node):
+        start_label = f"label_start_{id(node)}"
+        end_label = f"label_end_{id(node)}"
+
+        self.emit(f"{start_label}:")
+        self.visit(node.cond)
+
+        self.emit(f"push #{end_label}")
+        self.emit("cjmp")
+
+        for stmt in node.body:
+            self.visit(stmt)
+
+        self.emit(f"push #{start_label}")
+        self.emit("jmp")
+
+        self.emit(f"{end_label}:")
+
+    def visit_ASTWriteNode(self, node):
+        for expr in reversed(node.expressions):
+            self.visit(expr)
+            # self.emit(f"push {expr.value}")
+        
+        if node.kw == 1:
+            self.emit("write")
+        elif node.kw ==0:
+            self.emit("writebox")
+
+
+    def visit_ASTFunctionDeclNode(self, node):
+        self.emit(f".{node.name.lexeme}")  # label for function
+        self.enter_scope()
+
+        # Add parameters to memory
+        for i, param in enumerate(node.params):
+            self.scopes[-1][param.lexeme] = (self.level - 1, i)
+
+        # Visit body
+        for stmt in node.body:
+            self.visit(stmt)
+
+        self.emit("ret")
+        self.exit_scope()
+
+    def visit_ASTFunctionCallNode(self, node):
+        for arg in node.args:
+            self.visit(arg)
+
+        self.emit(f"push .{node.name.lexeme}")  # push function addr
+        self.emit(f"call")  # call
+
+    def visit_ASTPrintNode(self, node):
+        self.visit(node.expr)
+        self.emit("print")
+
+parser = par.Parser(""" 
+
+    __write_box 5,3,10,6,#123456;
+
+
+                """)
+
+ast_root = parser.Parse()
+
+
+type_checker = TypeChecker()
+type_checker.visit(ast_root)
+
+if type_checker.errors:
+        
+    print("Type checking failed with the following errors:")
+    for error in type_checker.errors:
+        print(f"- {error}")
+else:
+    print("Type checking passed!")
+
+
+generator = CodeGenVisitor()
+generator.visit(ast_root)
+
+print("\nGenerated Assembly-like Code:")
+print("\n".join(generator.instructions))
+

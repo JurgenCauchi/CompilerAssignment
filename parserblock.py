@@ -204,7 +204,7 @@ class Parser:
                 raise SyntaxError(f"Expected type after 'as', got {self.crtToken.lexeme}")
             cast_type = self.crtToken.lexeme
             self.NextToken()
-            left.cast_type = cast_type  # store cast type in AST node if needed
+            left = ast.ASTCastNode(expr=left, to_type=cast_type)
 
         return left
 
