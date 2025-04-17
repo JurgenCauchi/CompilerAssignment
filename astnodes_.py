@@ -36,8 +36,15 @@ class ASTUnaryNode(ASTNode):
     def __init__(self, op, expr):
         self.op = op  # '-' or 'not'
         self.expr = expr          # an instance of Expr (AST node)
-    
 
+class ASTFunctionCallNode(ASTNode):
+    def __init__(self,ident, func_name, param):
+        self.name = "ASTFunctionCallNode"
+        self.ident = ident
+        self.id = func_name
+        self.params = param
+    def accept(self, visitor):
+        visitor.visit_functioncall_node(self)
 # Base class for all expression nodes (extends ASTNode)
 class ASTExpressionNode(ASTNode):
     def __init__(self, op=None, left=None, right=None, value=None, cast_type=None):
@@ -65,13 +72,12 @@ class ASTExpressionNode(ASTNode):
 
 # Node for variables (extends expression node since variables can be used in expressions)
 class ASTFunctionDeclNode(ASTExpressionNode):
-    def __init__(self, ident,formalpar,type,intlit,block):
+    def __init__(self, ident,formalpar,type,block):
         super().__init__()
         self.name = "ASTFunctionDeclNode"
         self.identifier = ident  
         self.formalparams = formalpar
         self.type = type
-        self.intlit = intlit
         self.block = block
 
     # Visitor pattern accept method
@@ -438,9 +444,6 @@ class PrintNodesVisitor(ASTVisitor):
         print('\t' * self.tab_count, "Identifier:", function_node.identifier)
         print('\t' * self.tab_count, "Return Type:", function_node.type)
 
-        if function_node.intlit:
-            print('\t' * self.tab_count, "Array Size:", function_node.intlit)
-
         if function_node.formalparams:
             print('\t' * self.tab_count, "Parameters:")
             self.inc_tab_count()
@@ -464,6 +467,19 @@ class PrintNodesVisitor(ASTVisitor):
         for_node.blck.accept(self)
         self.dec_tab_count()
             
+
+    def visit_functioncall_node(self, fcall_node):
+        self.node_count += 1
+        print('\t' * self.tab_count, "Function Call node =>")
+        self.inc_tab_count()
+        fcall_node.id.accept(self)
+
+        for param in fcall_node.params:
+            param.accept(self)
+
+        self.dec_tab_count()
+
+
     def visit_if_node(self, if_node):
         self.node_count += 1
         print('\t' * self.tab_count, "If Statement node => ")

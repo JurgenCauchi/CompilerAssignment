@@ -3,6 +3,7 @@ class Visitor:
         def visit(self, node):
             method_name = f'visit_{type(node).__name__}'  # e.g., "visit_ASTForNode"
             visitor_method = getattr(self, method_name, None)
+
             
             if visitor_method is not None:
                 return visitor_method(node)
@@ -13,8 +14,8 @@ class TypeChecker(Visitor):
         def __init__(self):
             self.scopes = [{}]  # Tracks variable types
             self.errors = []  # Collect errors instead of raising immediately
-            self.funtype =[]
-            self.returns = []
+            self.func_sigs = {}
+            self.current_return_type = None 
 
         def current_scope(self):
             return self.scopes[-1]
@@ -47,6 +48,8 @@ class TypeChecker(Visitor):
                 'int': 'float',
                 'float': 'int',
                 'bool': 'int',
+                'colour': 'int',
+                'int': 'colour',
             }
 
             # Check if casting is allowed
@@ -108,51 +111,73 @@ class TypeChecker(Visitor):
             if not self.can_cast(expr_type, target_type):
                 raise TypeError(f"Cannot cast from {expr_type} to {target_type}")
             return target_type
+        
+        def visit_ASTReturnNode(self, node):
+            if self.current_return_type is None:
+                self._add_error("Return statement outside of any function")
+                return
 
-
-        def visit_ASTReturnNode(self,node):
-            
-            #add the value of the returntype to the list
-            if node.returntypes:
-                self.returns.extend(node.returntypes)
-            
             if node.expr:
-                self.visit(node.expr)
-                #check if the return type matches declared return type
-                for returntype in self.returns:
-                    if returntype not in self.funtype:
-                        self._add_error(f"Returned Value {returntype} and function type {self.funtype[0]} are not the same'")
-                self.returns.clear()
+                actual = self.visit(node.expr)
+                expected = self.current_return_type
+                if actual != expected:
+                    self._add_error(
+                        f"Return type mismatch: function expects '{expected}', but returning '{actual}'"
+                    )
+            else:
+                # a bare `return;` in a non-void function
+                if self.current_return_type != "void":
+                    self._add_error(
+                        f"Return statement missing expression (expected '{self.current_return_type}')"
+                    )
 
         def visit_ASTFunctionDeclNode(self, node):
-                """Type-check a for loop: for(init; condition; update) { body }"""
-                # 1. Check initializer (e.g., 'let int i = 0')
-                self.enter_scope()
+            # 1) Extract name and types using .lexeme
+            name     = node.identifier  
+            param_ts = [p[1].lexeme for p in node.formalparams]  
+            ret_t    = node.type             
 
-                if node.identifier:
-                    self.visit(node.identifier)
+            # 2) Register signature
+            self.func_sigs[name] = (param_ts, ret_t)
 
-                # 2. Check condition (e.g., 'x < 10')
-                if node.formalparams:
-                    self.visit(node.formalparams)  # This will trigger visit_ASTRelOpNode
-                    for formalparam in node.formalparams:
-                        self.declare_variable(formalparam[0],formalparam[1])
-                # 3. Check update (e.g., 'x = i + 1')
-                if node.type:
-                    self.visit(node.type)
-                    self.funtype.append(node.type)
+            # 3) Type‑check body with current_return_type set
+            old_ret = self.current_return_type
+            self.current_return_type = ret_t
 
-                # 4. Check body (e.g., '{ let int n = 6 }')
-                if node.block:
-                    self.enter_scope()  # New scope for loop variables (inside the body)
-                    for stmt in node.block.stmts:
-                        self.visit(stmt)
-                    self.exit_scope()  # Exit after the body
-                
-                self.funtype.clear()
-                self.exit_scope()  # Exit the outer scope after the loop ends
+            self.enter_scope()
+            # declare each parameter in the new scope
+            for idTok, typeTok in node.formalparams:
+                self.declare_variable(idTok.lexeme, typeTok.lexeme)
 
+            # visit every statement in the function block
+            for stmt in node.block.stmts:
+                self.visit(stmt)
 
+            self.exit_scope()
+            self.current_return_type = old_ret
+
+        def visit_ASTFunctionCallNode(self, node):
+            name = node.ident              # your parser probably sets ident to the lexeme
+            sig  = self.func_sigs.get(name)
+            if not sig:
+                self._add_error(f"Call to undefined function '{name}'")
+                return None
+
+            param_ts, ret_t = sig
+            if len(node.params) != len(param_ts):
+                self._add_error(
+                    f"Function '{name}' expects {len(param_ts)} args, got {len(node.params)}"
+                )
+
+            for arg, expected in zip(node.params, param_ts):
+                actual = self.visit(arg)
+                if actual != expected:
+                    self._add_error(
+                        f"Type mismatch in call to '{name}': expected {expected}, got {actual}"
+                    )
+
+            return ret_t
+        
         def visit_ASTForNode(self, node):
             """Type-check a for loop: for(init; condition; update) { body }"""
             # 1. Check initializer (e.g., 'let int i = 0')
@@ -364,23 +389,24 @@ class TypeChecker(Visitor):
 
     # Assuming you have an AST root node from your parser
 
-    # parser = par.Parser(""" 
+parser = par.Parser(""" 
 
-    #     let x:int = 0;
-    #         x = 5 as bool;
+                  fun giga()-> int {
+                    return 5;
+                    }
+                let x:int = giga();
 
+                    """)
 
-    #                 """)
+ast_root = parser.Parse()
 
-    # ast_root = parser.Parse()
+    # Create and run the type checker
+type_checker = TypeChecker()
+type_checker.visit(ast_root)
 
-    # # Create and run the type checker
-    # type_checker = TypeChecker()
-    # type_checker.visit(ast_root)
-
-    # if type_checker.errors:
-    #     print("Type checking failed with the following errors:")
-    #     for error in type_checker.errors:
-    #         print(f"- {error}")
-    # else:
-    #     print("Type checking passed!")
+if type_checker.errors:
+    print("Type checking failed with the following errors:")
+    for error in type_checker.errors:
+        print(f"- {error}")
+else:
+    print("Type checking passed!")

@@ -1,6 +1,7 @@
 import parserblock as par
 from SemanticVisitor import Visitor
 from SemanticVisitor import TypeChecker
+import astnodes_ as ast
 import pyperclip
 
 
@@ -10,19 +11,18 @@ class CodeGenVisitor(Visitor):
         self.instructions = []
         self.scopes = [{}]  # memory stack (SoF), stores (level, index) for each variable
         self.level = 0    # level in the SoF (stack of frames)
+        self.func_positions = {}         # map function name to its entry index
+        self.call_patches = []   
 
     def visit(self, node):
-        """Dispatches the visit method based on the node type."""
-        method_name = f"visit_{type(node).__name__}"
-        visit_method = getattr(self, method_name, self.generic_visit)
-        return visit_method(node)
+        method = f"visit_{type(node).__name__}"
+        return getattr(self, method, self.generic_visit)(node)
 
     def generic_visit(self, node):
-        """Handle generic cases or nodes with no specific visit method."""
-        print(f"Visiting unhandled node type: {type(node).__name__}")
+        print(f"Unhandled node: {type(node).__name__}")
 
-    def emit(self, line):
-        self.instructions.append(line)
+    def emit(self, instr):
+        self.instructions.append(instr)
 
     def enter_scope(self):
         self.scopes.append({})
@@ -33,41 +33,47 @@ class CodeGenVisitor(Visitor):
         self.level -= 1
 
     def declare_variable(self, name):
-        if not self.scopes:
-            raise Exception("No scope available to declare a variable.")
-        index = len(self.scopes[-1])  # Get the index for the variable in the current scope
-        self.scopes[-1][name] = (self.level - 1, index)  # Store it in the scope
+        idx = len(self.scopes[-1])
+        self.scopes[-1][name] = (self.level, idx)
         self.emit("push 1")
         self.emit("oframe")
-        return self.level , index
-    
+        return self.level, idx
+
     def lookup_variable(self, name):
-        for lvl in reversed(range(len(self.scopes))):
-            if name in self.scopes[lvl]:
-                return lvl, self.scopes[lvl][name][1]
+        for scope in reversed(self.scopes):
+            print(scope)
+            if name in scope:
+                return scope[name]
         raise Exception(f"Variable '{name}' not found")
+
 
     def visit_ASTDeclarationNode(self, node):
         print(f"Visiting Declaration Node: {node.id.lexeme}")
 
         level, index = self.declare_variable(node.id.lexeme)
-        # Evaluate RHS expression (if exists)
+
+        # Allocate space in the frame before storing value
+        self.emit("push 1")
+        self.emit("oframe")
+
+        # Evaluate RHS expression or default to 0
         if node.expr:
             self.visit(node.expr)
         else:
-            self.emit("push 0")  # default init
+            self.emit("push 0")
 
-        # Allocate var in current frame
-        
-
-        # Store value in memory
+        # Store the evaluated value into memory
         self.emit(f"push {index}")
         self.emit(f"push {level}")
         self.emit("st")
 
+
     def visit_ASTProgramNode(self, node):
 
         self.emit(".main")  # Emit the .main label at the beginning of the program
+        self.emit("push 4")
+        self.emit("jmp")
+        self.emit("halt")
         # Start code generation for the program
         print(f"Generating code for program with {len(node.statements)} statements")
 
@@ -146,7 +152,7 @@ class CodeGenVisitor(Visitor):
         self.visit(node.expr)
         
         # Push the else block location (will be patched later)
-        self.emit("push# PC+0")  # Placeholder
+        self.emit("push #PC+0")  # Placeholder
         else_jump_index = len(self.instructions) - 1
         self.emit("cjmp")
         
@@ -212,6 +218,44 @@ class CodeGenVisitor(Visitor):
         forward_offset = after_loop_index - cjmp_index
         self.instructions[cjmp_index] = f"push #PC+{forward_offset}"
 
+    def visit_ASTForNode(self, node):
+        # Initialization
+        if node.vardec:
+            self.visit(node.vardec)
+
+        # Index where the condition starts
+        condition_start_index = len(self.instructions)
+
+        # Condition (optional, if exists)
+        if node.expr:
+            self.visit(node.expr)
+
+            # Reserve space for push #PC+X (to be patched)
+            self.emit("push #")  # Placeholder for jump target
+            cjmp_index = len(self.instructions) - 1
+            self.emit("cjmp")
+        else:
+            cjmp_index = None  # No condition to jump on
+
+        # Loop body
+        for stmt in node.blck.stmts:
+            self.visit(stmt)
+
+        # Post-iteration step
+        if node.assgn:
+            self.visit(node.assgn)
+
+        # Jump back to condition start
+        current_index = len(self.instructions)
+        offset_to_condition = current_index - condition_start_index + 2  # +2 for push + jmp
+        self.emit(f"push #PC-{offset_to_condition}")
+        self.emit("jmp")
+
+        # Patch the conditional jump if there was a condition
+        if cjmp_index is not None:
+            after_loop_index = len(self.instructions)
+            forward_offset = after_loop_index - cjmp_index
+            self.instructions[cjmp_index] = f"push #PC+{forward_offset}"
 
 
     def visit_ASTWriteNode(self, node):
@@ -224,52 +268,94 @@ class CodeGenVisitor(Visitor):
         elif node.kw ==0:
             self.emit("writebox")
 
-
+    def visit_ASTFunctionCallNode(self, node):
+        # Push arguments in reverse order
+        for param in reversed(node.params):
+            self.visit(param)
+        
+        # Push argument count
+        self.emit(f"push {len(node.params)}")
+        
+        # Push function label
+        self.emit(f"push .{node.ident}")
+        
+        # Push return address (points to after the call)
+        return_offset = 3  # push + jmp + (next instruction)
+        self.emit(f"push #PC+{return_offset}")
+        
+        # Jump to function
+        self.emit("jmp")
+        
+        # After call, return value is on top of stack
+        # If you need to store it, do it here
+        
     def visit_ASTFunctionDeclNode(self, node):
-        self.emit(f".{node.identifier}")  # label for function
+        # jump over function body
+        jmp_idx = len(self.instructions)
+        self.emit("push #PC+__")  # placeholder
+        self.emit("jmp")
+
+        # label entry
+        entry_idx = len(self.instructions)
+        self.emit(f".{node.identifier}")
+        self.func_positions[node.identifier] = entry_idx
+
+        # function prologue
         self.enter_scope()
         self.inside_function = True
-        # Add parameters to memory
-        if node.formalparams:
-            for i, param in enumerate(node.formalparams):
-                self.scopes[-1][param] = (self.level - 1, i)
-                self.declare_variable(param)
+        param_count = len(node.formalparams)
+        self.emit(f"push {param_count}")
+        self.emit("alloc")
+        for i, param in enumerate(node.formalparams):
+            self.scopes[-1][param[0]] = (self.level, i)
+            self.emit(f"push {i}")
+            self.emit(f"push {self.level}")
+            self.emit("st")
 
-        # Visit body
+        # body
         for stmt in node.block.stmts:
             self.visit(stmt)
+
+        # ensure return
+        if not any(instr.startswith("ret") for instr in self.instructions[-3:]):
+            self.emit("push 0")
+            self.emit("ret")
 
         self.inside_function = False
         self.exit_scope()
 
-    def visit_ASTFunctionCallNode(self, node):
-        for arg in node.args:
-            self.visit(arg)
-
-        self.emit(f"push .{node.name.lexeme}")  # push function addr
-        self.emit(f"call")  # call
-
+        # patch jump over function
+        end_idx = len(self.instructions)
+        offset = end_idx - jmp_idx
+        self.instructions[jmp_idx] = f"push #PC+{offset}"
+        
+    # (Matches your example's behavior where return value is used)
     def visit_ASTPrintNode(self, node):
         self.visit(node.expr)
         self.emit("print")
 
-parser = par.Parser(""" 
-                    
-                 
-                    let x:int = 7;  
-                    if (x == 6){
-                    
-                    __print x;
-                    x = x-1;
-                    }
-                    else{
-                    __print 3;}
+    def visit_ASTDelayNode(self, node):
+        self.visit(node.expr)
+        self.emit("delay")
 
+    def visit_ASTPadRandINode(self, node):
+        self.visit(node.expr)
+        self.emit("irnd")
+
+    def visit_ASTPadWidthNode(self, node):
+        self.emit("width")
+
+    def visit_ASTPadHeightNode(self, node):
+        self.emit("height")
+
+parser = par.Parser(""" 
+                       
                     
-                    
-                    
-                    
-                    
+                  fun giga()-> int {
+                    return 5;
+                    }
+                let x:int = giga();
+                    __print x;
                     
                 """)
 
@@ -287,11 +373,15 @@ if type_checker.errors:
 else:
     print("Type checking passed!")
 
-
 generator = CodeGenVisitor()
 generator.visit(ast_root)
-
-print("\nGenerated Assembly-like Code:")
-code = "\n".join(generator.instructions)
-print(code)
-pyperclip.copy(code)
+if type_checker.errors:
+    print("Type checking failed with the following errors:")
+    for error in type_checker.errors:
+        print(f"- {error}")
+else:
+    print("Type checking passed!")
+    print("\nGenerated Assembly-like Code:")
+    code = "\n".join(generator.instructions)
+    print(code)
+    pyperclip.copy(code)

@@ -404,14 +404,7 @@ class Lexer:
 # # Test the lexer
 lex = Lexer()
 toks = lex.GenerateTokens(""" 
-                
-                let x:int = 6;  
-                    if (x == 6){
-                    
-                    __print x;
-                    }
-                    else{
-                    __print 2;}
+            x = bozo(5);
                 
                 """)
 
