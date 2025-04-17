@@ -199,7 +199,7 @@ class Parser:
         left = self.ParseFactor()
 
         # Optional multiplicative operators
-        while self.crtToken.type == lex.TokenType.mulop:
+        while self.crtToken.type == lex.TokenType.mulop or self.crtToken.type == lex.TokenType.slash:
             op = self.crtToken.lexeme
             self.NextToken()
             right = self.ParseFactor()

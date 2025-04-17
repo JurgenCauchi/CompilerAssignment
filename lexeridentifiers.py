@@ -42,8 +42,9 @@ class TokenType(Enum):
     rsqr =          37
     arrow =         38
     minus =         39
-    error =         40       # For invalid tokens
-    end =           41        # For end of input
+    slash =         40
+    error =         41       # For invalid tokens
+    end =           42        # For end of input
 
 # Class to represent a token with its type and actual text (lexeme)
 class Token:
@@ -55,14 +56,14 @@ class Token:
 class Lexer:
     def __init__(self):
         # Categories of characters we'll encounter
-        self.lexeme_list = ["_","-",">", ".", "#",";",":", "=","[","]","comma", "letter", "digit","{","}","(",")","mulop","addop","relop","boolean_value", "ws", "other"]
+        self.lexeme_list = ["_","-",">", ".", "#",";",":", "=","/","[","]","comma", "letter", "digit","{","}","(",")","mulop","addop","relop","boolean_value", "ws", "other"]
 
         self.type_list = {"int", "float" , "bool" , "colour" }
         
         self.boolean_list = {"true", "false"}
         
         # Possible states of our finite automaton
-        self.states_list = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 , 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 , 21 , 22,23]
+        self.states_list = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 , 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 , 21 , 22,23,24,25]
         
         # Which states are accepting (valid end states for tokens)
         self.states_accp = [1, 2, 3, 4, 5, 7, 9 , 10, 11 ,12, 13, 14, 15, 16, 17, 18, 19 , 20, 21 , 22 ,23]
@@ -151,7 +152,18 @@ class Lexer:
         self.Tx[0][self.lexeme_list.index("-")] = 22
         self.Tx[22][self.lexeme_list.index(">")] = 23
 
-  
+        # Starting from state 0
+        self.Tx[0][self.lexeme_list.index("/")] = 24    # First `/`
+        self.Tx[24][self.lexeme_list.index("/")] = 25    # Second `/`, now inside a line comment
+
+        # From state 24, consume ANYTHING until a newline
+        for i, char in enumerate(self.lexeme_list):
+            if char != "\n":  # Keep eating all characters
+                self.Tx[25][i] = 25
+
+        # On newline, exit the comment
+        self.Tx[25][self.lexeme_list.index("ws")] = 2
+
         # # Print the transition table for debugging
         # for row in self.Tx:
         #     print(row)
@@ -267,6 +279,7 @@ class Lexer:
         if character == "_": cat = "_"
         if character == ".": cat = "."  
         if character == "\"": cat = "\""
+        if character == "/": cat = "/"
         if character == "#": cat = "#"
         if character.isspace(): cat = "ws"      
         if character == ";": cat = ";"
@@ -278,7 +291,7 @@ class Lexer:
         if character == "{" : cat = "{"
         if character == "(" : cat = "("
         if character == ")" : cat = ")"
-        if character in {"*","/",}: cat = "mulop"
+        if character == "*": cat = "mulop"
         if character == "+": cat = "addop"
         if character in {"<","!"}: cat = "relop"
         if character == ",": cat = "comma"
@@ -404,7 +417,8 @@ class Lexer:
 # # Test the lexer
 lex = Lexer()
 toks = lex.GenerateTokens(""" 
-            x = bozo(5);
+            x = bozo(5); //niggers
+            x
                 
                 """)
 
