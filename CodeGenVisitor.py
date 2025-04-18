@@ -16,6 +16,7 @@ class CodeGenVisitor(Visitor):
 
     def visit(self, node):
         method = f"visit_{type(node).__name__}"
+        print(f"Visiting node: {type(node).__name__}")
         return getattr(self, method, self.generic_visit)(node)
 
     def generic_visit(self, node):
@@ -34,17 +35,18 @@ class CodeGenVisitor(Visitor):
 
     def declare_variable(self, name):
         idx = len(self.scopes[-1])
+        #print(f"Declaring {name} at level {self.level}, index {idx}")
         self.scopes[-1][name] = (self.level, idx)
-        self.emit("push 1")
-        self.emit("oframe")
         return self.level, idx
 
     def lookup_variable(self, name):
         for scope in reversed(self.scopes):
-            print(scope)
             if name in scope:
-                return scope[name]
+                level, idx = scope[name]
+                #print(f"Resolved {name} to [{idx}:{level}]")
+                return level, idx
         raise Exception(f"Variable '{name}' not found")
+
 
 
     def visit_ASTDeclarationNode(self, node):
@@ -53,19 +55,22 @@ class CodeGenVisitor(Visitor):
         level, index = self.declare_variable(node.id.lexeme)
 
         # Allocate space in the frame before storing value
-        self.emit("push 1")
+        self.emit("push 1 //Start of variable declaration")
         self.emit("oframe")
 
+        # Evaluate RHS expression or default to 0
         # Evaluate RHS expression or default to 0
         if node.expr:
             self.visit(node.expr)
         else:
-            self.emit("push 0")
+            self.emit("push 0")  # First push for default value
+            self.emit("push 0 ")  # Possibly type tag or default fallback
 
         # Store the evaluated value into memory
         self.emit(f"push {index}")
         self.emit(f"push {level}")
         self.emit("st")
+
 
 
     def visit_ASTProgramNode(self, node):
@@ -93,7 +98,7 @@ class CodeGenVisitor(Visitor):
     def visit_ASTAssignmentNode(self, node):
         self.visit(node.expr)
         level, index = self.lookup_variable(node.id.lexeme)
-        self.emit(f"push {index}")
+        self.emit(f"push {index} //Start of assignment")
         self.emit(f"push {level}")
         self.emit("st")
     
@@ -114,8 +119,8 @@ class CodeGenVisitor(Visitor):
         self.emit(f"push {node.value}")
 
     def visit_ASTAddOpNode(self, node):
-        self.visit(node.right)
         self.visit(node.left)
+        self.visit(node.right)
         if node.op == "+":
             self.emit("add")
         elif node.op == "-":
@@ -130,16 +135,16 @@ class CodeGenVisitor(Visitor):
             self.emit("div")
 
     def visit_ASTRelOpNode(self, node):
-        self.visit(node.left)
         self.visit(node.right)
+        self.visit(node.left)
 
         ops = {
-            '<': "le",
-            '<=': "lt",
-            '>': "ge",
-            '>=': "gt",
-            '==': "eq\nnot",
-            '!=': "eq"
+            '<': "lr",
+            '<=': "le",
+            '>': "gt",
+            '>=': "ge",
+            '==': "eq",
+            '!=': "eq\nnot",
         }
         self.emit(ops[node.op])
 
@@ -162,7 +167,7 @@ class CodeGenVisitor(Visitor):
             
         # If there's an else block, handle it
         if len(node.blocks) == 2:
-            # Push jump past else block (will be patched later)
+            # Push jump past else block (will be pa+tched later)
             self.emit("push #PC+0")  # Placeholder
             end_jump_index = len(self.instructions) - 1
             self.emit("jmp")
@@ -219,6 +224,7 @@ class CodeGenVisitor(Visitor):
         self.instructions[cjmp_index] = f"push #PC+{forward_offset}"
 
     def visit_ASTForNode(self, node):
+          # Enter a new scope for the loop
         # Initialization
         if node.vardec:
             self.visit(node.vardec)
@@ -237,10 +243,16 @@ class CodeGenVisitor(Visitor):
         else:
             cjmp_index = None  # No condition to jump on
 
-        # Loop body
+        self.emit("oframe")  # Before loop body
+
+        # Loop body...
+        self.enter_scope()
         for stmt in node.blck.stmts:
             self.visit(stmt)
+        self.exit_scope() 
 
+        # After loop ends
+        self.emit("cframe")
         # Post-iteration step
         if node.assgn:
             self.visit(node.assgn)
@@ -256,6 +268,8 @@ class CodeGenVisitor(Visitor):
             after_loop_index = len(self.instructions)
             forward_offset = after_loop_index - cjmp_index
             self.instructions[cjmp_index] = f"push #PC+{forward_offset}"
+
+         # Exit the loop scope
 
 
     def visit_ASTWriteNode(self, node):
@@ -274,25 +288,16 @@ class CodeGenVisitor(Visitor):
             self.visit(param)
         
         # Push argument count
-        self.emit(f"push {len(node.params)}")
+        self.emit(f"push {len(node.params)} //Start of function call")
         
         # Push function label
         self.emit(f"push .{node.ident}")
-        
-        # Push return address (points to after the call)
-        return_offset = 3  # push + jmp + (next instruction)
-        self.emit(f"push #PC+{return_offset}")
-        
-        # Jump to function
-        self.emit("jmp")
-        
-        # After call, return value is on top of stack
-        # If you need to store it, do it here
+        self.emit(f"call")
         
     def visit_ASTFunctionDeclNode(self, node):
         # jump over function body
         jmp_idx = len(self.instructions)
-        self.emit("push #PC+__")  # placeholder
+        self.emit("push #PC+__ ")  # placeholder
         self.emit("jmp")
 
         # label entry
@@ -328,7 +333,7 @@ class CodeGenVisitor(Visitor):
         end_idx = len(self.instructions)
         offset = end_idx - jmp_idx
         self.instructions[jmp_idx] = f"push #PC+{offset}"
-        
+    
     # (Matches your example's behavior where return value is used)
     def visit_ASTPrintNode(self, node):
         self.visit(node.expr)
@@ -337,6 +342,11 @@ class CodeGenVisitor(Visitor):
     def visit_ASTDelayNode(self, node):
         self.visit(node.expr)
         self.emit("delay")
+
+    def visit_ASTClearNode(self, node):
+        self.visit(node.expr)
+        self.emit("clear")
+
 
     def visit_ASTPadRandINode(self, node):
         self.visit(node.expr)
@@ -348,15 +358,20 @@ class CodeGenVisitor(Visitor):
     def visit_ASTPadHeightNode(self, node):
         self.emit("height")
 
+    def visit_ASTCastNode(self, node):  
+        self.visit(node.expr)  
+
 parser = par.Parser(""" 
-                       
-                    
-                  fun giga()-> int {
-                    return 5;
-                    }
-                let x:int = giga();
-                    __print x;
-                    
+
+
+let c:colour = 0 as colour;
+
+ for (let i:int = 0; i < 64; i = i + 1) {
+ c = __random_int 1677216 as colour;
+ __clear c;
+
+ __delay 1000;
+ }
                 """)
 
 ast_root = parser.Parse()

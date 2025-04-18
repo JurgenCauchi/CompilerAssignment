@@ -88,7 +88,6 @@ class Parser:
         return left
 
     def ParseFormalParam(self):
-        intlit = None
         ident = self.crtToken.lexeme
         self.NextToken()
 
@@ -102,16 +101,16 @@ class Parser:
         type = self.crtToken.lexeme
         self.NextToken()
 
-        if self.crtToken.type == lex.TokenType.lsqr:
-            self.NextToken()
-            if self.crtToken.type != lex.TokenType.integerliteral:
-                raise SyntaxError(f"Expected integer literal, got {self.crtToken.lexeme}")
-            intlit = self.crtToken.lexeme
-            self.NextToken()
-            if self.crtToken.type != lex.TokenType.rsqr:
-                raise SyntaxError(f"Expected ] after identifier, got {self.crtToken.lexeme}")
+        # if self.crtToken.type == lex.TokenType.lsqr:
+        #     self.NextToken()
+        #     if self.crtToken.type != lex.TokenType.integerliteral:
+        #         raise SyntaxError(f"Expected integer literal, got {self.crtToken.lexeme}")
+        #     intlit = self.crtToken.lexeme
+        #     self.NextToken()
+        #     if self.crtToken.type != lex.TokenType.rsqr:
+        #         raise SyntaxError(f"Expected ] after identifier, got {self.crtToken.lexeme}")
 
-        return (ident,type,intlit)
+        return (ident,type)
     
     def ParseFormalParams(self):
         params = []
@@ -127,7 +126,6 @@ class Parser:
     
     def ParseFuncDecl(self):
         formalparam = []  
-        intlit = None
         self.NextToken()
         
         if self.crtToken.type != lex.TokenType.identifier:
@@ -139,11 +137,9 @@ class Parser:
             raise SyntaxError(f"Expected ( after identifier, got {self.crtToken.lexeme}")
         self.NextToken()
 
-        # ✅ Check if there are parameters
         if self.crtToken.type == lex.TokenType.identifier:
             formalparam = self.ParseFormalParams()
 
-        # ✅ Still expect closing parenthesis
         if self.crtToken.type != lex.TokenType.rparen:
             raise SyntaxError(f"Expected ) after parameter list, got {self.crtToken.lexeme}")
         self.NextToken()
@@ -296,12 +292,14 @@ class Parser:
         return ast.ASTPrintNode(expr)
 
     def ParseDelay(self):
-        if self.crtToken.type != lex.TokenType.delay:
-            raise SyntaxError(f"Expected '__delay' at start of the print statement, got {self.crtToken.lexeme}")
         self.NextToken()
         expr = self.ParseExpression()
         return ast.ASTDelayNode(expr)
     
+    def ParseClear(self):
+        self.NextToken()
+        expr = self.ParseExpression()
+        return ast.ASTClearNode(expr)    
 
     def ParseForloop(self):
         self.NextToken()
@@ -535,6 +533,11 @@ class Parser:
             if self.crtToken.type != lex.TokenType.semicolon:
                 raise SyntaxError(f"Expected ; got: {self.crtToken.type}")
             self.NextToken()
+        elif self.crtToken.type == lex.TokenType.clear:
+            stmt = self.ParseClear()
+            if self.crtToken.type != lex.TokenType.semicolon:
+                raise SyntaxError(f"Expected ; got: {self.crtToken.type}")
+            self.NextToken()
         elif self.crtToken.type in (lex.TokenType.write, lex.TokenType.wrbox):
             stmt = self.ParseWrite()
             if self.crtToken.type != lex.TokenType.semicolon:
@@ -596,18 +599,18 @@ class Parser:
         self.ASTroot = self.ParseProgram()
         return self.ASTroot  
 
-parser = Parser("""
+# parser = Parser("""
             
-                fun bozo(x:int) -> bool{
-                    return true;
-                    }
+#                 fun bozo(x:int) -> bool{
+#                     return true;
+#                     }
                     
-                    let x:bool = bozo(5);
-                    __print x;
+#                     let x:bool = bozo(5);
+#                     __print x;
                     
-                """)
+#                 """)
 
-parser.Parse()
+# parser.Parse()
 
-print_visitor = ast.PrintNodesVisitor()
-parser.ASTroot.accept(print_visitor)
+# print_visitor = ast.PrintNodesVisitor()
+# parser.ASTroot.accept(print_visitor)

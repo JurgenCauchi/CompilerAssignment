@@ -134,7 +134,7 @@ class TypeChecker(Visitor):
         def visit_ASTFunctionDeclNode(self, node):
             # 1) Extract name and types using .lexeme
             name     = node.identifier  
-            param_ts = [p[1].lexeme for p in node.formalparams]  
+            param_ts = [p[1] for p in node.formalparams]  
             ret_t    = node.type             
 
             # 2) Register signature
@@ -147,7 +147,7 @@ class TypeChecker(Visitor):
             self.enter_scope()
             # declare each parameter in the new scope
             for idTok, typeTok in node.formalparams:
-                self.declare_variable(idTok.lexeme, typeTok.lexeme)
+                self.declare_variable(idTok, typeTok)
 
             # visit every statement in the function block
             for stmt in node.block.stmts:
@@ -294,6 +294,10 @@ class TypeChecker(Visitor):
             
             # Return the result type (could be more sophisticated)
             return left_type
+
+        def visit_ASTPadRandINode(self,node):
+            expr = self.visit(node.expr)
+            return expr
         
         def visit_ASTPrintNode(self,node):
             expr = self.visit(node.expr)
@@ -389,24 +393,24 @@ class TypeChecker(Visitor):
 
     # Assuming you have an AST root node from your parser
 
-parser = par.Parser(""" 
+# parser = par.Parser(""" 
 
-                  fun giga()-> int {
-                    return 5;
-                    }
-                let x:int = giga();
+#                   fun giga()-> int {
+#                     return 5;
+#                     }
+#                 let x:int = giga();
 
-                    """)
+#                     """)
 
-ast_root = parser.Parse()
+# # ast_root = parser.Parse()
 
-    # Create and run the type checker
-type_checker = TypeChecker()
-type_checker.visit(ast_root)
+#     # Create and run the type checker
+# type_checker = TypeChecker()
+# type_checker.visit(ast_root)
 
-if type_checker.errors:
-    print("Type checking failed with the following errors:")
-    for error in type_checker.errors:
-        print(f"- {error}")
-else:
-    print("Type checking passed!")
+# if type_checker.errors:
+#     print("Type checking failed with the following errors:")
+#     for error in type_checker.errors:
+#         print(f"- {error}")
+# else:
+#     print("Type checking passed!")

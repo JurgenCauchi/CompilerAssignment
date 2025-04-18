@@ -237,14 +237,26 @@ class ASTReturnNode(ASTStatementNode):
         visitor.visit_return_node(self)                
 
 class ASTPrintNode(ASTStatementNode):
-    def __init__(self, ast_print_node):
+    def __init__(self, print_node):
         super().__init__()
         self.name = "ASTPrintNode"
-        self.expr = ast_print_node      # Stores the type of the variabl
+        self.expr = print_node      # Stores the type of the variabl
 
     # Visitor pattern accept method
     def accept(self, visitor):
         visitor.visit_print_node(self)    
+
+
+class ASTClearNode(ASTStatementNode):
+    def __init__(self, clear_node):
+        super().__init__()
+        self.name = "ASTClearNode"
+        self.expr = clear_node      # Stores the type of the variabl
+
+    # Visitor pattern accept method
+    def accept(self, visitor):
+        visitor.visit_clear_node(self)    
+
 
 class ASTForNode(ASTStatementNode):
     def __init__(self, ast_vardec_node, ast_expr_node, ast_ass_node, ast_blck_node):
@@ -553,6 +565,13 @@ class PrintNodesVisitor(ASTVisitor):
         delay_node.expr.accept(self)   # Visit the expression
         self.dec_tab_count()
 
+    def visit_clear_node(self, clear_node):
+        self.node_count += 1
+        print('\t' * self.tab_count, "Clear node => ")
+        self.inc_tab_count()  
+        clear_node.expr.accept(self)   # Visit the expression
+
+        self.dec_tab_count()
     def visit_write_node(self, write_node):
         self.node_count += 1
         print('\t' * self.tab_count, "Write node =>")
@@ -685,21 +704,21 @@ class PrintNodesVisitor(ASTVisitor):
         
         self.dec_tab_count()
 
-# Example 1: Building and printing AST for "x = 23;"
-print("Building AST for assigment statement x=23;")
+# # Example 1: Building and printing AST for "x = 23;"
+# print("Building AST for assigment statement x=23;")
 
-# Create a print visitor instance
-print_visitor = PrintNodesVisitor()
+# # Create a print visitor instance
+# print_visitor = PrintNodesVisitor()
 
-# Create nodes for the assignment:
-#assignment_type = ASTTypeNode("int")
-#assignment_colon = ASTColonNode(":")
-#ssignment_lhs = ASTVariableNode("x")  # Left side is variable 'x'
-#assignment_rhs = ASTIntegerNode(23)    # Right side is integer 23
-#root = ASTAssignmentNode(assignment_type, assignment_colon, assignment_lhs, assignment_rhs)  # Combine into assignment
+# # Create nodes for the assignment:
+# #assignment_type = ASTTypeNode("int")
+# #assignment_colon = ASTColonNode(":")
+# #ssignment_lhs = ASTVariableNode("x")  # Left side is variable 'x'
+# #assignment_rhs = ASTIntegerNode(23)    # Right side is integer 23
+# #root = ASTAssignmentNode(assignment_type, assignment_colon, assignment_lhs, assignment_rhs)  # Combine into assignment
 
-# Print the AST structure
-#root.accept(print_visitor)
-print("Node Count => ", print_visitor.node_count)
-print("----")
+# # Print the AST structure
+# #root.accept(print_visitor)
+# print("Node Count => ", print_visitor.node_count)
+# print("----")
 

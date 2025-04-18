@@ -43,8 +43,9 @@ class TokenType(Enum):
     arrow =         38
     minus =         39
     slash =         40
-    error =         41       # For invalid tokens
-    end =           42        # For end of input
+    clear =         42   
+    error =         43       # For invalid tokens
+    end =           44        # For end of input
 
 # Class to represent a token with its type and actual text (lexeme)
 class Token:
@@ -56,7 +57,7 @@ class Token:
 class Lexer:
     def __init__(self):
         # Categories of characters we'll encounter
-        self.lexeme_list = ["_","-",">", ".", "#",";",":", "=","/","[","]","comma", "letter", "digit","{","}","(",")","mulop","addop","relop","boolean_value", "ws", "other"]
+        self.lexeme_list = ["_","-",">", ".", "#",";",":", "=","/","[","]","comma", "letter", "digit","{","}","(",")","newline","mulop","addop","relop","boolean_value", "ws", "other"]
 
         self.type_list = {"int", "float" , "bool" , "colour" }
         
@@ -98,6 +99,8 @@ class Lexer:
         # - From state 2, on whitespace stay in state 2
         self.Tx[0][self.lexeme_list.index("ws")] = 2
         self.Tx[2][self.lexeme_list.index("ws")] = 2
+        self.Tx[0][self.lexeme_list.index("newline")] = 2
+        self.Tx[2][self.lexeme_list.index("newline")] = 2
 
         # - From state 0, on digit go to state 3
         # - From state 3, on digit stay in state 3
@@ -156,13 +159,13 @@ class Lexer:
         self.Tx[0][self.lexeme_list.index("/")] = 24    # First `/`
         self.Tx[24][self.lexeme_list.index("/")] = 25    # Second `/`, now inside a line comment
 
-        # From state 24, consume ANYTHING until a newline
+        # From state 25, consume ANYTHING until a newline
         for i, char in enumerate(self.lexeme_list):
-            if char != "\n":  # Keep eating all characters
+            if char != "newline":  # Keep eating all characters except newline
                 self.Tx[25][i] = 25
-
+            
         # On newline, exit the comment
-        self.Tx[25][self.lexeme_list.index("ws")] = 2
+        self.Tx[25][self.lexeme_list.index("newline")] = 2
 
         # # Print the transition table for debugging
         # for row in self.Tx:
@@ -222,6 +225,8 @@ class Lexer:
                 return Token(TokenType.wrbox, lexeme)
             elif lexeme == "__write":
                 return Token(TokenType.write, lexeme)
+            elif lexeme == "__clear":
+                return Token(TokenType.clear, lexeme)
             else:
                 return Token(TokenType.identifier, lexeme)
         elif state == 2:  # Whitespace state
@@ -274,6 +279,7 @@ class Lexer:
     # Categorize a character into one of our lexeme types
     def CatChar(self, character):
         cat = "other"  # Default category
+        if character == "\n": cat = "newline"
         if character.isalpha(): cat = "letter"
         if character.isdigit(): cat = "digit"
         if character == "_": cat = "_"
@@ -281,7 +287,7 @@ class Lexer:
         if character == "\"": cat = "\""
         if character == "/": cat = "/"
         if character == "#": cat = "#"
-        if character.isspace(): cat = "ws"      
+        if character.isspace() and character != "\n": cat = "ws"      
         if character == ";": cat = ";"
         if character == ":": cat = ":"
         if character == "=": cat = "="
@@ -414,11 +420,12 @@ class Lexer:
 
         return tokens_list
 
-# # Test the lexer
+# # # Test the lexer
 lex = Lexer()
 toks = lex.GenerateTokens(""" 
-            x = bozo(5); //niggers
-            x
+ //Execution (program entry point) starts at the first statement
+ //that is not a function declaration. This should go in the .main
+ //function of ParIR.
                 
                 """)
 
