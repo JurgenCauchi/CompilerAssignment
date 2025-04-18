@@ -26,37 +26,37 @@ class CodeGenVisitor(Visitor):
         self.instructions.append(instr)
 
     def enter_scope(self):
-        self.scopes.append({})
-        self.level += 1
+        self.scopes.insert(0,{})
+        for scope in self.scopes:
+            for var in scope:
+                index, level = scope[var]
+                scope[var] = (index, level + 1)
 
     def exit_scope(self):
-        self.scopes.pop()
-        self.level -= 1
+        for scope in self.scopes:
+            for var in scope:
+                index, level = scope[var]
+                scope[var] = (index, level - 1)
+        self.scopes.pop(0)
+
 
     def declare_variable(self, name):
-        idx = len(self.scopes[-1])
-        #print(f"Declaring {name} at level {self.level}, index {idx}")
-        self.scopes[-1][name] = (self.level, idx)
+        scope = self.scopes[0]
+        idx = len(scope)
+        scope[name] = (idx, self.level)
+        print(self.scopes)
         return self.level, idx
 
+
     def lookup_variable(self, name):
-        for scope in reversed(self.scopes):
+        for scope in (self.scopes):
             if name in scope:
-                level, idx = scope[name]
-                #print(f"Resolved {name} to [{idx}:{level}]")
-                return level, idx
+                idx, level = scope[name]
+                return idx, level
         raise Exception(f"Variable '{name}' not found")
 
-
-
     def visit_ASTDeclarationNode(self, node):
-        print(f"Visiting Declaration Node: {node.id.lexeme}")
-
         level, index = self.declare_variable(node.id.lexeme)
-
-        # Allocate space in the frame before storing value
-        self.emit("push 1 //Start of variable declaration")
-        self.emit("oframe")
 
         # Evaluate RHS expression or default to 0
         # Evaluate RHS expression or default to 0
@@ -71,21 +71,22 @@ class CodeGenVisitor(Visitor):
         self.emit(f"push {level}")
         self.emit("st")
 
-
-
     def visit_ASTProgramNode(self, node):
 
         self.emit(".main")  # Emit the .main label at the beginning of the program
         self.emit("push 4")
         self.emit("jmp")
         self.emit("halt")
+        spacesneeded = sum(1 for stmt in node.statements if isinstance(stmt, ast.ASTDeclarationNode))
+        self.emit(f"push {spacesneeded}")
+        self.emit("oframe")
         # Start code generation for the program
         print(f"Generating code for program with {len(node.statements)} statements")
 
         for stmt in node.statements:
             self.visit(stmt)  # visit each statement (this will dispatch to the appropriate node handler)
-        
-        # Optionally, you can emit some final instructions like program end
+        for i in range(len(self.scopes)+1):
+            self.emit("cframe")
         self.emit("halt")  # or some other end-of-program instruction if required
 
     def visit_ASTBlockNode(self, node):
@@ -94,16 +95,15 @@ class CodeGenVisitor(Visitor):
             self.visit(stmt)
         self.exit_scope()
 
-
     def visit_ASTAssignmentNode(self, node):
         self.visit(node.expr)
-        level, index = self.lookup_variable(node.id.lexeme)
+        index, level = self.lookup_variable(node.id.lexeme)
         self.emit(f"push {index} //Start of assignment")
         self.emit(f"push {level}")
         self.emit("st")
     
     def visit_ASTVariableNode(self, node):
-        level, index = self.lookup_variable(node.lexeme)
+        index, level = self.lookup_variable(node.lexeme)
         self.emit(f"push [{index}:{level}]")
 
     def visit_ASTIntegerNode(self, node):
@@ -119,17 +119,19 @@ class CodeGenVisitor(Visitor):
         self.emit(f"push {node.value}")
 
     def visit_ASTAddOpNode(self, node):
-        self.visit(node.left)
         self.visit(node.right)
+        self.visit(node.left)
+
         if node.op == "+":
             self.emit("add")
         elif node.op == "-":
             self.emit("sub")
 
     def visit_ASTMultiOpNode(self, node):
-        self.visit(node.left)
         self.visit(node.right)
-        if node.op == "*":
+        self.visit(node.left)
+        print(node.op)
+        if node.op == "*" or node.op == "and":
             self.emit("mul")
         elif node.op == "/":
             self.emit("div")
@@ -139,7 +141,7 @@ class CodeGenVisitor(Visitor):
         self.visit(node.left)
 
         ops = {
-            '<': "lr",
+            '<': "lt",
             '<=': "le",
             '>': "gt",
             '>=': "ge",
@@ -156,15 +158,22 @@ class CodeGenVisitor(Visitor):
         # Evaluate the condition
         self.visit(node.expr)
         
+
+        self.emit("push #PC+4")  # Placeholder
+        self.emit("cjmp")
         # Push the else block location (will be patched later)
         self.emit("push #PC+0")  # Placeholder
         else_jump_index = len(self.instructions) - 1
-        self.emit("cjmp")
+        self.emit("jmp")
         
         # Then block
+        num_vars = sum(1 for stmt in node.blocks if isinstance(stmt, ast.ASTDeclarationNode))  # or stmt.type == 'var_decl'
+        self.emit(f"push {num_vars}")
+        self.emit("oframe")
+        self.enter_scope()
         for stmt in node.blocks[0].stmts:
             self.visit(stmt)
-            
+        self.exit_scope()
         # If there's an else block, handle it
         if len(node.blocks) == 2:
             # Push jump past else block (will be pa+tched later)
@@ -203,14 +212,22 @@ class CodeGenVisitor(Visitor):
         # Emit condition
         self.visit(node.expr)
 
+        self.emit("push #PC+4")
+        self.emit("cjmp")
         # Reserve space for push #PC+X (will be patched)
         self.emit("push #")  # Placeholder for jump target
         cjmp_index = len(self.instructions) - 1
-        self.emit("cjmp")
-
+        self.emit("jmp")
+        
+        num_vars = sum(1 for stmt in node.block.stmts if isinstance(stmt, ast.ASTDeclarationNode))  # or stmt.type == 'var_decl'
+        self.emit(f"push {num_vars}")
+        self.emit("oframe")
+        
+        self.enter_scope()
         # Loop body
         for stmt in node.block.stmts:
             self.visit(stmt)
+        self.exit_scope()   
 
         # Jump back to condition start (corrected offset)
         current_index = len(self.instructions)
@@ -226,6 +243,10 @@ class CodeGenVisitor(Visitor):
     def visit_ASTForNode(self, node):
           # Enter a new scope for the loop
         # Initialization
+        spacesneeded = len(self.scopes[0])
+        self.emit(f"push {spacesneeded}")
+        self.emit("oframe")
+        self.enter_scope()
         if node.vardec:
             self.visit(node.vardec)
 
@@ -235,16 +256,18 @@ class CodeGenVisitor(Visitor):
         # Condition (optional, if exists)
         if node.expr:
             self.visit(node.expr)
-
+            self.emit("push #PC+4")
+            self.emit("cjmp")
             # Reserve space for push #PC+X (to be patched)
             self.emit("push #")  # Placeholder for jump target
             cjmp_index = len(self.instructions) - 1
-            self.emit("cjmp")
+            self.emit("jmp")
         else:
             cjmp_index = None  # No condition to jump on
 
-        self.emit("oframe")  # Before loop body
-
+        num_vars = sum(1 for stmt in node.blck.stmts if isinstance(stmt, ast.ASTDeclarationNode))  # or stmt.type == 'var_decl'
+        self.emit(f"push {num_vars}")
+        self.emit("oframe")
         # Loop body...
         self.enter_scope()
         for stmt in node.blck.stmts:
@@ -257,9 +280,10 @@ class CodeGenVisitor(Visitor):
         if node.assgn:
             self.visit(node.assgn)
 
+
         # Jump back to condition start
         current_index = len(self.instructions)
-        offset_to_condition = current_index - condition_start_index + 2  # +2 for push + jmp
+        offset_to_condition = current_index - condition_start_index 
         self.emit(f"push #PC-{offset_to_condition}")
         self.emit("jmp")
 
@@ -270,7 +294,7 @@ class CodeGenVisitor(Visitor):
             self.instructions[cjmp_index] = f"push #PC+{forward_offset}"
 
          # Exit the loop scope
-
+        self.exit_scope()
 
     def visit_ASTWriteNode(self, node):
         for expr in reversed(node.expressions):
@@ -311,11 +335,9 @@ class CodeGenVisitor(Visitor):
         param_count = len(node.formalparams)
         self.emit(f"push {param_count}")
         self.emit("alloc")
-        for i, param in enumerate(node.formalparams):
-            self.scopes[-1][param[0]] = (self.level, i)
-            self.emit(f"push {i}")
-            self.emit(f"push {self.level}")
-            self.emit("st")
+        print(node.formalparams)
+        for param in node.formalparams:
+            self.declare_variable(param[0])
 
         # body
         for stmt in node.block.stmts:
@@ -361,17 +383,57 @@ class CodeGenVisitor(Visitor):
     def visit_ASTCastNode(self, node):  
         self.visit(node.expr)  
 
+# parser = par.Parser(""" 
+
+
+# let c:colour = 0 as colour;
+
+#  for (let i:int = 0; i < 4; i = i + 1) {
+#  c = __random_int 1677216 as colour;
+#  __clear c;
+
+#  __delay 1000;
+#  }
+#                 """)
+
 parser = par.Parser(""" 
 
 
-let c:colour = 0 as colour;
+ fun Race(p1_c:colour, p2_c:colour, score_max:int) -> int {
+ let p1_score:int = 0;
+ let p2_score:int = 0;
 
- for (let i:int = 0; i < 64; i = i + 1) {
- c = __random_int 1677216 as colour;
- __clear c;
+ //while (Max(p1_score, p2_score) < score_max) //Alternative loop
+ while ((p1_score < score_max) and (p2_score < score_max)) {
+ let p1_toss:int = __random_int 1000;
+ let p2_toss:int = __random_int 1000;
 
- __delay 1000;
+ if (p1_toss > p2_toss) {
+ p1_score = p1_score + 1;
+ __write 1, p1_score, p1_c;
+ } else {
+ p2_score = p2_score + 1;
+ __write 2, p2_score, p2_c;
  }
+
+ __delay 100;
+ }
+
+ if (p2_score > p1_score) {
+ return 2;
+ }
+
+ return 1;
+ }
+ //Execution (program entry point) starts at the first statement
+ //that is not a function declaration. This should go in the .main
+ //function of ParIR.
+
+ let c1:colour = #00ff00; //green
+ let c2:colour = #0000ff; //blue
+ let m:int = __height; //the height (y-values) of the pad
+ let w:int = Race(c1, c2, m); //call function Race
+ __print w;
                 """)
 
 ast_root = parser.Parse()
