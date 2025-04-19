@@ -5,14 +5,14 @@ import astnodes_ as ast
 import pyperclip
 
 
-
 class CodeGenVisitor(Visitor):
     def __init__(self):
         self.instructions = []
-        self.scopes = [{}]  # memory stack (SoF), stores (level, index) for each variable
+        # memory stack (SoF), stores (level, index) for each variable
+        self.scopes = [{}]
         self.level = 0    # level in the SoF (stack of frames)
         self.func_positions = {}         # map function name to its entry index
-        self.call_patches = []   
+        self.call_patches = []
 
     def visit(self, node):
         method = f"visit_{type(node).__name__}"
@@ -26,7 +26,7 @@ class CodeGenVisitor(Visitor):
         self.instructions.append(instr)
 
     def enter_scope(self):
-        self.scopes.insert(0,{})
+        self.scopes.insert(0, {})
         for scope in self.scopes:
             for var in scope:
                 index, level = scope[var]
@@ -39,14 +39,12 @@ class CodeGenVisitor(Visitor):
                 scope[var] = (index, level - 1)
         self.scopes.pop(0)
 
-
     def declare_variable(self, name):
         scope = self.scopes[0]
         idx = len(scope)
         scope[name] = (idx, self.level)
         print(self.scopes)
         return self.level, idx
-
 
     def lookup_variable(self, name):
         for scope in (self.scopes):
@@ -73,21 +71,26 @@ class CodeGenVisitor(Visitor):
 
     def visit_ASTProgramNode(self, node):
 
-        self.emit(".main")  # Emit the .main label at the beginning of the program
+        # Emit the .main label at the beginning of the program
+        self.emit(".main")
         self.emit("push 4")
         self.emit("jmp")
         self.emit("halt")
-        spacesneeded = sum(1 for stmt in node.statements if isinstance(stmt, ast.ASTDeclarationNode))
+        spacesneeded = sum(1 for stmt in node.statements if isinstance(
+            stmt, ast.ASTDeclarationNode))
         self.emit(f"push {spacesneeded}")
         self.emit("oframe")
         # Start code generation for the program
-        print(f"Generating code for program with {len(node.statements)} statements")
+        print(
+            f"Generating code for program with {len(node.statements)} statements")
 
         for stmt in node.statements:
-            self.visit(stmt)  # visit each statement (this will dispatch to the appropriate node handler)
-        for i in range(len(self.scopes)+1):
+            # visit each statement (this will dispatch to the appropriate node handler)
+            self.visit(stmt)
+        for i in range(len(self.scopes)):
             self.emit("cframe")
-        self.emit("halt")  # or some other end-of-program instruction if required
+        # or some other end-of-program instruction if required
+        self.emit("halt")
 
     def visit_ASTBlockNode(self, node):
         self.enter_scope()
@@ -101,7 +104,7 @@ class CodeGenVisitor(Visitor):
         self.emit(f"push {index} //Start of assignment")
         self.emit(f"push {level}")
         self.emit("st")
-    
+
     def visit_ASTVariableNode(self, node):
         index, level = self.lookup_variable(node.lexeme)
         self.emit(f"push [{index}:{level}]")
@@ -157,38 +160,45 @@ class CodeGenVisitor(Visitor):
     def visit_ASTIfNode(self, node):
         # Evaluate the condition
         self.visit(node.expr)
-        
 
         self.emit("push #PC+4")  # Placeholder
         self.emit("cjmp")
         # Push the else block location (will be patched later)
+        else_jump_index = len(self.instructions)
         self.emit("push #PC+0")  # Placeholder
-        else_jump_index = len(self.instructions) - 1
         self.emit("jmp")
-        
+
         # Then block
-        num_vars = sum(1 for stmt in node.blocks if isinstance(stmt, ast.ASTDeclarationNode))  # or stmt.type == 'var_decl'
+        num_vars = sum(1 for stmt in node.blocks if isinstance(
+            stmt, ast.ASTDeclarationNode))  # or stmt.type == 'var_decl'
         self.emit(f"push {num_vars}")
         self.emit("oframe")
         self.enter_scope()
         for stmt in node.blocks[0].stmts:
             self.visit(stmt)
         self.exit_scope()
+        self.emit("cframe")
         # If there's an else block, handle it
         if len(node.blocks) == 2:
+
             # Push jump past else block (will be pa+tched later)
+            end_jump_index = len(self.instructions)
             self.emit("push #PC+0")  # Placeholder
-            end_jump_index = len(self.instructions) - 1
             self.emit("jmp")
-            
+            num_vars = sum(1 for stmt in node.blocks if isinstance(
+                stmt, ast.ASTDeclarationNode))  # or stmt.type == 'var_decl'
+            self.emit(f"push {num_vars}")
+            self.emit("oframe")
             # Patch the else jump location
-            else_location = len(self.instructions)
+            else_location = len(self.instructions) - 2
             self.instructions[else_jump_index] = f"push #PC+{else_location - else_jump_index}"
-            
+
+            self.enter_scope()
             # Else block
             for stmt in node.blocks[1].stmts:
                 self.visit(stmt)
-                
+            self.exit_scope()
+            self.emit("cframe")
             # Patch the end jump location
             end_location = len(self.instructions)
             self.instructions[end_jump_index] = f"push #PC+{end_location - end_jump_index}"
@@ -215,33 +225,37 @@ class CodeGenVisitor(Visitor):
         self.emit("push #PC+4")
         self.emit("cjmp")
         # Reserve space for push #PC+X (will be patched)
+
+        cjmp_index = len(self.instructions)
         self.emit("push #")  # Placeholder for jump target
-        cjmp_index = len(self.instructions) - 1
         self.emit("jmp")
-        
-        num_vars = sum(1 for stmt in node.block.stmts if isinstance(stmt, ast.ASTDeclarationNode))  # or stmt.type == 'var_decl'
+
+        num_vars = sum(1 for stmt in node.block.stmts if isinstance(
+            stmt, ast.ASTDeclarationNode))  # or stmt.type == 'var_decl'
         self.emit(f"push {num_vars}")
         self.emit("oframe")
-        
+
         self.enter_scope()
         # Loop body
         for stmt in node.block.stmts:
             self.visit(stmt)
-        self.exit_scope()   
+        self.exit_scope()
+        self.emit("cframe")
 
         # Jump back to condition start (corrected offset)
         current_index = len(self.instructions)
-        offset_to_condition = current_index - condition_start_index + 2  # +2 = push + jmp
+        offset_to_condition = current_index - condition_start_index  # +2 = push + jmp
+        after_loop_index = len(self.instructions) + 2
         self.emit(f"push #PC-{offset_to_condition}")
         self.emit("jmp")
 
         # Patch the forward jump in cjmp
-        after_loop_index = len(self.instructions)
+
         forward_offset = after_loop_index - cjmp_index
         self.instructions[cjmp_index] = f"push #PC+{forward_offset}"
 
     def visit_ASTForNode(self, node):
-          # Enter a new scope for the loop
+        # Enter a new scope for the loop
         # Initialization
         spacesneeded = len(self.scopes[0])
         self.emit(f"push {spacesneeded}")
@@ -260,19 +274,20 @@ class CodeGenVisitor(Visitor):
             self.emit("cjmp")
             # Reserve space for push #PC+X (to be patched)
             self.emit("push #")  # Placeholder for jump target
-            cjmp_index = len(self.instructions) - 1
+            cjmp_index = len(self.instructions)
             self.emit("jmp")
         else:
             cjmp_index = None  # No condition to jump on
 
-        num_vars = sum(1 for stmt in node.blck.stmts if isinstance(stmt, ast.ASTDeclarationNode))  # or stmt.type == 'var_decl'
+        num_vars = sum(1 for stmt in node.blck.stmts if isinstance(
+            stmt, ast.ASTDeclarationNode))  # or stmt.type == 'var_decl'
         self.emit(f"push {num_vars}")
         self.emit("oframe")
         # Loop body...
         self.enter_scope()
         for stmt in node.blck.stmts:
             self.visit(stmt)
-        self.exit_scope() 
+        self.exit_scope()
 
         # After loop ends
         self.emit("cframe")
@@ -280,10 +295,9 @@ class CodeGenVisitor(Visitor):
         if node.assgn:
             self.visit(node.assgn)
 
-
         # Jump back to condition start
         current_index = len(self.instructions)
-        offset_to_condition = current_index - condition_start_index 
+        offset_to_condition = current_index - condition_start_index
         self.emit(f"push #PC-{offset_to_condition}")
         self.emit("jmp")
 
@@ -300,24 +314,24 @@ class CodeGenVisitor(Visitor):
         for expr in reversed(node.expressions):
             self.visit(expr)
             # self.emit(f"push {expr.value}")
-        
+
         if node.kw == 1:
             self.emit("write")
-        elif node.kw ==0:
+        elif node.kw == 0:
             self.emit("writebox")
 
     def visit_ASTFunctionCallNode(self, node):
         # Push arguments in reverse order
         for param in reversed(node.params):
             self.visit(param)
-        
+
         # Push argument count
         self.emit(f"push {len(node.params)} //Start of function call")
-        
+
         # Push function label
         self.emit(f"push .{node.ident}")
         self.emit(f"call")
-        
+
     def visit_ASTFunctionDeclNode(self, node):
         # jump over function body
         jmp_idx = len(self.instructions)
@@ -348,6 +362,7 @@ class CodeGenVisitor(Visitor):
             self.emit("push 0")
             self.emit("ret")
 
+        self.emit("cframe")  # clean up the frame
         self.inside_function = False
         self.exit_scope()
 
@@ -355,7 +370,7 @@ class CodeGenVisitor(Visitor):
         end_idx = len(self.instructions)
         offset = end_idx - jmp_idx
         self.instructions[jmp_idx] = f"push #PC+{offset}"
-    
+
     # (Matches your example's behavior where return value is used)
     def visit_ASTPrintNode(self, node):
         self.visit(node.expr)
@@ -369,7 +384,6 @@ class CodeGenVisitor(Visitor):
         self.visit(node.expr)
         self.emit("clear")
 
-
     def visit_ASTPadRandINode(self, node):
         self.visit(node.expr)
         self.emit("irnd")
@@ -380,10 +394,10 @@ class CodeGenVisitor(Visitor):
     def visit_ASTPadHeightNode(self, node):
         self.emit("height")
 
-    def visit_ASTCastNode(self, node):  
-        self.visit(node.expr)  
+    def visit_ASTCastNode(self, node):
+        self.visit(node.expr)
 
-# parser = par.Parser(""" 
+# parser = par.Parser("""
 
 
 # let c:colour = 0 as colour;
@@ -443,7 +457,7 @@ type_checker = TypeChecker()
 type_checker.visit(ast_root)
 
 if type_checker.errors:
-        
+
     print("Type checking failed with the following errors:")
     for error in type_checker.errors:
         print(f"- {error}")

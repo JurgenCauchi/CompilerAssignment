@@ -2,72 +2,81 @@
 from enum import Enum
 
 # Define different types of tokens our lexer will recognize
+
+
 class TokenType(Enum):
-    let =           1
-    rtrn =          2
-    for_kw =        3
-    while_kw =      4
-    if_kw =         5
-    else_kw =       6
-    fun =           7 
-    identifier =    8    # For variable names, function names, etc.
-    whitespace =    9    # For spaces, tabs, etc.
-    booleanliteral= 10        # For values
-    integerliteral= 11
-    floatliteral =  12
+    let = 1
+    rtrn = 2
+    for_kw = 3
+    while_kw = 4
+    if_kw = 5
+    else_kw = 6
+    fun = 7
+    identifier = 8    # For variable names, function names, etc.
+    whitespace = 9    # For spaces, tabs, etc.
+    booleanliteral = 10        # For values
+    integerliteral = 11
+    floatliteral = 12
     colourliteral = 13
-    comma =         14     # For seperators/punctuator
-    mulop =         15
-    addop =         16
-    relop =         17
-    semicolon =     18
-    colon =         19
-    equals =        20
-    type =          21
-    as_kw =         22
-    padwidth =      23
-    padheight =     24
-    padread =       25
+    comma = 14     # For seperators/punctuator
+    mulop = 15
+    addop = 16
+    relop = 17
+    semicolon = 18
+    colon = 19
+    equals = 20
+    type = 21
+    as_kw = 22
+    padwidth = 23
+    padheight = 24
+    padread = 25
     padrandom_int = 26
-    print =         27
-    delay =         28
-    wrbox =         29
-    write =         30
-    lcurly =        31
-    rcurly =        32
-    lparen =        33
-    rparen =        34
-    not_kw =        35
-    lsqr =          36
-    rsqr =          37
-    arrow =         38
-    minus =         39
-    slash =         40
-    clear =         42   
-    error =         43       # For invalid tokens
-    end =           44        # For end of input
+    print = 27
+    delay = 28
+    wrbox = 29
+    write = 30
+    lcurly = 31
+    rcurly = 32
+    lparen = 33
+    rparen = 34
+    not_kw = 35
+    lsqr = 36
+    rsqr = 37
+    arrow = 38
+    minus = 39
+    slash = 40
+    clear = 42
+    error = 43       # For invalid tokens
+    end = 44        # For end of input
 
 # Class to represent a token with its type and actual text (lexeme)
+
+
 class Token:
     def __init__(self, t, l):
         self.type = t  # Token type (from TokenType enum)
         self.lexeme = l  # The actual text of the token
 
 # Main lexer class that converts source code into tokens
+
+
 class Lexer:
     def __init__(self):
         # Categories of characters we'll encounter
-        self.lexeme_list = ["_","-",">", ".", "#",";",":", "=","/","[","]","comma", "letter", "digit","{","}","(",")","newline","mulop","addop","relop","boolean_value", "ws", "other"]
+        self.lexeme_list = ["_", "-", ">", ".", "#", ";", ":", "=", "/", "[", "]", "comma", "letter",
+                            "digit", "{", "}", "(", ")", "newline", "mulop", "addop", "relop", "boolean_value", "ws", "other"]
 
-        self.type_list = {"int", "float" , "bool" , "colour" }
-        
+        self.type_list = {"int", "float", "bool", "colour"}
+
         self.boolean_list = {"true", "false"}
-        
+
         # Possible states of our finite automaton
-        self.states_list = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 , 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 , 21 , 22,23,24,25]
-        
+        self.states_list = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+                            12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]
+
         # Which states are accepting (valid end states for tokens)
-        self.states_accp = [1, 2, 3, 4, 5, 7, 9 , 10, 11 ,12, 13, 14, 15, 16, 17, 18, 19 , 20, 21 , 22 ,23]
+        self.states_accp = [1, 2, 3, 4, 5, 7, 9, 10, 11, 12,
+                            13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]
 
         # Calculate dimensions for our transition table
         self.rows = len(self.states_list)
@@ -76,19 +85,19 @@ class Lexer:
         # Initialize transition table with -1 (error state)
         # Tx[state][character_category] = next_state
         self.Tx = [[-1 for j in range(self.cols)] for i in range(self.rows)]
-        
+
         # Set up the transition rules
-        self.InitialiseTxTable()     
+        self.InitialiseTxTable()
 
     def InitialiseTxTable(self):
         # Define the state transitions for our lexer's finite automaton
-        
+
         # From state 0 (start state):
         # - On letter or underscore, go to state 1 (identifier)
         self.Tx[0][self.lexeme_list.index("letter")] = 1
         self.Tx[0][self.lexeme_list.index("_")] = 1
         self.Tx[1][self.lexeme_list.index("_")] = 1
-        
+
         # From state 1 (identifier):
         # - On letter or digit, stay in state 1
         self.Tx[1][self.lexeme_list.index("letter")] = 1
@@ -117,12 +126,12 @@ class Lexer:
 
         self.Tx[0][self.lexeme_list.index("mulop")] = 5
 
-        self.Tx[0][self.lexeme_list.index("addop")] = 13 
+        self.Tx[0][self.lexeme_list.index("addop")] = 13
 
         self.Tx[0][self.lexeme_list.index("relop")] = 14
         self.Tx[0][self.lexeme_list.index(">")] = 14
 
-        self.Tx[14][self.lexeme_list.index("=")] = 15 
+        self.Tx[14][self.lexeme_list.index("=")] = 15
 
         # - From state 0, on # go to state 8
         self.Tx[0][self.lexeme_list.index("#")] = 8
@@ -141,11 +150,11 @@ class Lexer:
 
         self.Tx[0][self.lexeme_list.index(":")] = 12
 
-        #To get the curly brackets token
+        # To get the curly brackets token
         self.Tx[0][self.lexeme_list.index("{")] = 16
         self.Tx[0][self.lexeme_list.index("}")] = 17
 
-        #To get the brackets token
+        # To get the brackets token
         self.Tx[0][self.lexeme_list.index("(")] = 18
         self.Tx[0][self.lexeme_list.index(")")] = 19
 
@@ -157,19 +166,16 @@ class Lexer:
 
         # Starting from state 0
         self.Tx[0][self.lexeme_list.index("/")] = 24    # First `/`
-        self.Tx[24][self.lexeme_list.index("/")] = 25    # Second `/`, now inside a line comment
+        # Second `/`, now inside a line comment
+        self.Tx[24][self.lexeme_list.index("/")] = 25
 
         # From state 25, consume ANYTHING until a newline
         for i, char in enumerate(self.lexeme_list):
             if char != "newline":  # Keep eating all characters except newline
                 self.Tx[25][i] = 25
-            
+
         # On newline, exit the comment
         self.Tx[25][self.lexeme_list.index("newline")] = 2
-
-        # # Print the transition table for debugging
-        # for row in self.Tx:
-        #     print(row)
 
     # Check if a given state is an accepting state
     def AcceptingStates(self, state):
@@ -183,7 +189,7 @@ class Lexer:
     def GetTokenTypeByFinalState(self, state, lexeme):
         if state == 1:  # Identifier state
             # Check if lexeme is in keyword list first
-            if lexeme in self.boolean_list: 
+            if lexeme in self.boolean_list:
                 return Token(TokenType.booleanliteral, lexeme)
             elif lexeme in self.type_list:
                 return Token(TokenType.type, lexeme)
@@ -232,14 +238,14 @@ class Lexer:
         elif state == 2:  # Whitespace state
             return Token(TokenType.whitespace, lexeme)
         elif state == 3:
-            return Token(TokenType.integerliteral, lexeme )
+            return Token(TokenType.integerliteral, lexeme)
         elif state == 4:
             return Token(TokenType.comma, lexeme)
-        elif state == 5:
+        elif state == 5 or state == 24:
             return Token(TokenType.mulop, lexeme)
-        elif state == 7: 
+        elif state == 7:
             return Token(TokenType.floatliteral, lexeme)
-        elif state == 9:             
+        elif state == 9:
             if len(lexeme) != 7 or not all(c.lower() in '0123456789abcdef' for c in lexeme[1:]):
                 return Token(TokenType.error, lexeme)
             else:
@@ -274,33 +280,55 @@ class Lexer:
             return Token(TokenType.arrow, lexeme)
         else:
             return 'default result'
-        
 
     # Categorize a character into one of our lexeme types
+
     def CatChar(self, character):
         cat = "other"  # Default category
-        if character == "\n": cat = "newline"
-        if character.isalpha(): cat = "letter"
-        if character.isdigit(): cat = "digit"
-        if character == "_": cat = "_"
-        if character == ".": cat = "."  
-        if character == "\"": cat = "\""
-        if character == "/": cat = "/"
-        if character == "#": cat = "#"
-        if character.isspace() and character != "\n": cat = "ws"      
-        if character == ";": cat = ";"
-        if character == ":": cat = ":"
-        if character == "=": cat = "="
-        if character == "-": cat = "-"
-        if character == ">": cat = ">"
-        if character == "}" : cat = "}"
-        if character == "{" : cat = "{"
-        if character == "(" : cat = "("
-        if character == ")" : cat = ")"
-        if character == "*": cat = "mulop"
-        if character == "+": cat = "addop"
-        if character in {"<","!"}: cat = "relop"
-        if character == ",": cat = "comma"
+        if character == "\n":
+            cat = "newline"
+        if character.isalpha():
+            cat = "letter"
+        if character.isdigit():
+            cat = "digit"
+        if character == "_":
+            cat = "_"
+        if character == ".":
+            cat = "."
+        if character == "\"":
+            cat = "\""
+        if character == "/":
+            cat = "/"
+        if character == "#":
+            cat = "#"
+        if character.isspace() and character != "\n":
+            cat = "ws"
+        if character == ";":
+            cat = ";"
+        if character == ":":
+            cat = ":"
+        if character == "=":
+            cat = "="
+        if character == "-":
+            cat = "-"
+        if character == ">":
+            cat = ">"
+        if character == "}":
+            cat = "}"
+        if character == "{":
+            cat = "{"
+        if character == "(":
+            cat = "("
+        if character == ")":
+            cat = ")"
+        if character == "*":
+            cat = "mulop"
+        if character == "+":
+            cat = "addop"
+        if character in {"<", "!"}:
+            cat = "relop"
+        if character == ",":
+            cat = "comma"
         return cat
 
     # Check if we've reached the end of input
@@ -311,7 +339,7 @@ class Lexer:
     def NextChar(self, src_program_str, src_program_idx):
         if not self.EndOfInput(src_program_str, src_program_idx):
             return True, src_program_str[src_program_idx]
-        else: 
+        else:
             return False, "."  # Return dummy character at end
 
     # Main tokenization function - gets the next token from input
@@ -319,59 +347,53 @@ class Lexer:
         state = 0  # Start in initial state
         stack = []  # Used for backtracking when we hit errors
         lexeme = ""  # Will store the text of the token we're building
-        
+
         # Push error marker onto stack
-        stack.append(-2)  
-        
+        stack.append(-2)
+
         # Process characters until we hit an error state (-1)
         while state != -1:
             # If current state is accepting, clear the stack
             # (we only want to keep track back to last accepting state)
-            if self.AcceptingStates(state): 
+            if self.AcceptingStates(state):
                 stack.clear()
-            
+
             # Remember this state in case we need to backtrack
             stack.append(state)
-            
+
             # Get next character
             exists, character = self.NextChar(src_program_str, src_program_idx)
             lexeme += character
-            
 
             # Stop if we're at end of input
-            if not exists: 
+            if not exists:
                 break
-            
-            
 
             # Move to next character position
             src_program_idx += 1
-            
 
             # Categorize the character and look up next state
             cat = self.CatChar(character)
             state = self.Tx[state][self.lexeme_list.index(cat)]
-            
-
-            
 
             # Debug print (commented out)
-            #print("Lexeme: ", lexeme, " => NEXT STATE: ", state, "  => CAT: ", cat, "  => CHAR:", character, "  => STACK: ", stack)
-        
+            # print("Lexeme: ", lexeme, " => NEXT STATE: ", state, "  => CAT: ", cat, "  => CHAR:", character, "  => STACK: ", stack)
+
         # Remove the last character that caused the error state
         lexeme = lexeme[:-1]
 
         syntax_error = False
-        
+
         # Now backtrack to find the last accepting state
         while len(stack) > 0:
             if stack[-1] == -2:  # Hit our error marker
                 syntax_error = True
                 # Get the problematic character
-                exists, character = self.NextChar(src_program_str, src_program_idx-1)
+                exists, character = self.NextChar(
+                    src_program_str, src_program_idx-1)
                 lexeme = character
-                break    
-            
+                break
+
             # If top of stack isn't accepting, backtrack
             if not self.AcceptingStates(stack[-1]):
                 stack.pop()
@@ -380,26 +402,24 @@ class Lexer:
                 # Found an accepting state - use this
                 state = stack.pop()
                 break
-        
 
         # Handle syntax errors
         if syntax_error:
             return Token(TokenType.error, lexeme), "error"
-        
+
         # Return appropriate token if in accepting state
         if self.AcceptingStates(state):
             return self.GetTokenTypeByFinalState(state, lexeme), lexeme
-        else: 
+        else:
             return Token(TokenType.error, lexeme), "Lexical Error"
 
-        
-
     # Main function to tokenize entire input string
+
     def GenerateTokens(self, src_program_str):
         print("INPUT:: " + src_program_str)
         tokens_list = []
         src_program_idx = 0
-        
+
         # Get first token
         token, lexeme = self.NextToken(src_program_str, src_program_idx)
         tokens_list.append(token)
@@ -408,27 +428,31 @@ class Lexer:
         while token != -1:
             # Move index past current token
             src_program_idx += len(lexeme)
-            
+
             # If not at end, get next token
             if not self.EndOfInput(src_program_str, src_program_idx):
-                token, lexeme = self.NextToken(src_program_str, src_program_idx)
+                token, lexeme = self.NextToken(
+                    src_program_str, src_program_idx)
                 tokens_list.append(token)
-                if token.type == TokenType.error: 
+                if token.type == TokenType.error:
                     break  # Stop on error
-            else: 
+            else:
                 break  # Stop at end of input
 
         return tokens_list
 
+
 # # # Test the lexer
 lex = Lexer()
 toks = lex.GenerateTokens(""" 
- //Execution (program entry point) starts at the first statement
- //that is not a function declaration. This should go in the .main
- //function of ParIR.
+fun AverageOfTwo(x:int, y:int) -> float {
+ let t0:int = x + y;
+ let t1:float = t0 / 2 as float; //casting expression to a float
+ return t1;
+ }
                 
                 """)
 
- #Print all found tokens
+# Print all found tokens
 for t in toks:
     print(t.type, t.lexeme)
