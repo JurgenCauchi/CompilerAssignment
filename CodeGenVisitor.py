@@ -273,8 +273,8 @@ class CodeGenVisitor(Visitor):
             self.emit("push #PC+4")
             self.emit("cjmp")
             # Reserve space for push #PC+X (to be patched)
-            self.emit("push #")  # Placeholder for jump target
             cjmp_index = len(self.instructions)
+            self.emit("push #")  # Placeholder for jump target
             self.emit("jmp")
         else:
             cjmp_index = None  # No condition to jump on
@@ -413,41 +413,23 @@ class CodeGenVisitor(Visitor):
 parser = par.Parser(""" 
 
 
- fun Race(p1_c:colour, p2_c:colour, score_max:int) -> int {
- let p1_score:int = 0;
- let p2_score:int = 0;
+let h:int = __height - 1;
+let w:int = __width - 1;
+let c:colour = #bbbbbb;
 
- //while (Max(p1_score, p2_score) < score_max) //Alternative loop
- while ((p1_score < score_max) and (p2_score < score_max)) {
- let p1_toss:int = __random_int 1000;
- let p2_toss:int = __random_int 1000;
 
- if (p1_toss > p2_toss) {
- p1_score = p1_score + 1;
- __write 1, p1_score, p1_c;
- } else {
- p2_score = p2_score + 1;
- __write 2, p2_score, p2_c;
- }
+    for (let i:int = 0; i < h; i = i + 1) {  
+        __write w,i,c;
+        __delay 16;
+                                                  
+            }
+     h = h - 1;               
+    for (let j:int = w; j < 0; j = j - 1) {
+        __write j,h,c;
+        __delay 16;
 
- __delay 100;
- }
-
- if (p2_score > p1_score) {
- return 2;
- }
-
- return 1;
- }
- //Execution (program entry point) starts at the first statement
- //that is not a function declaration. This should go in the .main
- //function of ParIR.
-
- let c1:colour = #00ff00; //green
- let c2:colour = #0000ff; //blue
- let m:int = __height; //the height (y-values) of the pad
- let w:int = Race(c1, c2, m); //call function Race
- __print w;
+    }       
+     w = w -1;        
                 """)
 
 ast_root = parser.Parse()
