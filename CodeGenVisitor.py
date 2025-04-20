@@ -233,7 +233,7 @@ class CodeGenVisitor(Visitor):
         num_vars = sum(1 for stmt in node.block.stmts if isinstance(
             stmt, ast.ASTDeclarationNode))  # or stmt.type == 'var_decl'
         self.emit(f"push {num_vars}")
-        self.emit("oframe")
+        self.emit("oframe //here")
 
         self.enter_scope()
         # Loop body
@@ -257,9 +257,9 @@ class CodeGenVisitor(Visitor):
     def visit_ASTForNode(self, node):
         # Enter a new scope for the loop
         # Initialization
-        spacesneeded = len(self.scopes[0])
+        spacesneeded = 1
         self.emit(f"push {spacesneeded}")
-        self.emit("oframe")
+        self.emit("oframe ")
         self.enter_scope()
         if node.vardec:
             self.visit(node.vardec)
@@ -308,6 +308,7 @@ class CodeGenVisitor(Visitor):
             self.instructions[cjmp_index] = f"push #PC+{forward_offset}"
 
          # Exit the loop scope
+        self.emit("cframe")
         self.exit_scope()
 
     def visit_ASTWriteNode(self, node):
@@ -413,23 +414,41 @@ class CodeGenVisitor(Visitor):
 parser = par.Parser(""" 
 
 
-let h:int = __height - 1;
-let w:int = __width - 1;
-let c:colour = #bbbbbb;
+let h:int = __height -1 ;
+let w:int = __width -1;
+let c:colour = #ff0000;
+let hb:int = 0 ;
+                    
 
-
+while (h > __height/2 as int) {
     for (let i:int = 0; i < h; i = i + 1) {  
-        __write w,i,c;
+        __write hb,i,c;
         __delay 16;
                                                   
             }
-     h = h - 1;               
-    for (let j:int = w; j < 0; j = j - 1) {
-        __write j,h,c;
+    for (let j:int = 0; j < w; j = j + 1) {  
+    __write j,h,c;
+    __delay 16;          
+                               
+            }
+        for (let i:int = h; i > 0; i = i - 1) {  
+        __write h,i,c;
         __delay 16;
+                                                  
+            }
 
-    }       
-     w = w -1;        
+
+    for (let j:int = w; j > 0; j = j - 1) {  
+    __write j,hb,c;
+    __delay 16;          
+                               
+            } 
+    h = h - 1;
+    w = w - 1;
+    hb = hb + 1;
+              
+                    }
+               
                 """)
 
 ast_root = parser.Parse()
