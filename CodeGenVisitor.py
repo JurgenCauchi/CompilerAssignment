@@ -43,7 +43,6 @@ class CodeGenVisitor(Visitor):
         scope = self.scopes[0]
         idx = len(scope)
         scope[name] = (idx, self.level)
-        print(self.scopes)
         return self.level, idx
 
     def lookup_variable(self, name):
@@ -81,8 +80,7 @@ class CodeGenVisitor(Visitor):
         self.emit(f"push {spacesneeded}")
         self.emit("oframe")
         # Start code generation for the program
-        print(
-            f"Generating code for program with {len(node.statements)} statements")
+        print(f"Generating code for program with {len(node.statements)} statements")
 
         for stmt in node.statements:
             # visit each statement (this will dispatch to the appropriate node handler)
@@ -101,7 +99,7 @@ class CodeGenVisitor(Visitor):
     def visit_ASTAssignmentNode(self, node):
         self.visit(node.expr)
         index, level = self.lookup_variable(node.id.lexeme)
-        self.emit(f"push {index} //Start of assignment")
+        self.emit(f"push {index}")
         self.emit(f"push {level}")
         self.emit("st")
 
@@ -133,7 +131,6 @@ class CodeGenVisitor(Visitor):
     def visit_ASTMultiOpNode(self, node):
         self.visit(node.right)
         self.visit(node.left)
-        print(node.op)
         if node.op == "*" or node.op == "and":
             self.emit("mul")
         elif node.op == "/":
@@ -257,7 +254,7 @@ class CodeGenVisitor(Visitor):
     def visit_ASTForNode(self, node):
         # Enter a new scope for the loop
         # Initialization
-        spacesneeded = len(self.scopes[0])
+        spacesneeded = 1
         self.emit(f"push {spacesneeded}")
         self.emit("oframe")
         self.enter_scope()
@@ -283,6 +280,7 @@ class CodeGenVisitor(Visitor):
             stmt, ast.ASTDeclarationNode))  # or stmt.type == 'var_decl'
         self.emit(f"push {num_vars}")
         self.emit("oframe")
+        
         # Loop body...
         self.enter_scope()
         for stmt in node.blck.stmts:
@@ -300,7 +298,6 @@ class CodeGenVisitor(Visitor):
         offset_to_condition = current_index - condition_start_index
         self.emit(f"push #PC-{offset_to_condition}")
         self.emit("jmp")
-
         # Patch the conditional jump if there was a condition
         if cjmp_index is not None:
             after_loop_index = len(self.instructions)
@@ -309,6 +306,7 @@ class CodeGenVisitor(Visitor):
 
          # Exit the loop scope
         self.exit_scope()
+        self.emit("cframe")
 
     def visit_ASTWriteNode(self, node):
         for expr in reversed(node.expressions):
@@ -326,7 +324,7 @@ class CodeGenVisitor(Visitor):
             self.visit(param)
 
         # Push argument count
-        self.emit(f"push {len(node.params)} //Start of function call")
+        self.emit(f"push {len(node.params)}")
 
         # Push function label
         self.emit(f"push .{node.ident}")
@@ -349,7 +347,6 @@ class CodeGenVisitor(Visitor):
         param_count = len(node.formalparams)
         self.emit(f"push {param_count}")
         self.emit("alloc")
-        print(node.formalparams)
         for param in node.formalparams:
             self.declare_variable(param[0])
 
@@ -371,7 +368,7 @@ class CodeGenVisitor(Visitor):
         offset = end_idx - jmp_idx
         self.instructions[jmp_idx] = f"push #PC+{offset}"
 
-    # (Matches your example's behavior where return value is used)
+
     def visit_ASTPrintNode(self, node):
         self.visit(node.expr)
         self.emit("print")
@@ -397,41 +394,88 @@ class CodeGenVisitor(Visitor):
     def visit_ASTCastNode(self, node):
         self.visit(node.expr)
 
-# parser = par.Parser("""
+parser = par.Parser("""
 
 
-# let c:colour = 0 as colour;
+let c:colour = 0 as colour;
 
-#  for (let i:int = 0; i < 4; i = i + 1) {
-#  c = __random_int 1677216 as colour;
-#  __clear c;
+ for (let i:int = 0; i < 4; i = i + 1) {
+ c = __random_int 1677216 as colour;
+ __clear c;
 
-#  __delay 1000;
-#  }
-#                 """)
-
-parser = par.Parser(""" 
-
-
-let h:int = __height - 1;
-let w:int = __width - 1;
-let c:colour = #bbbbbb;
-
-
-    for (let i:int = 0; i < h; i = i + 1) {  
-        __write w,i,c;
-        __delay 16;
-                                                  
-            }
-     h = h - 1;               
-    for (let j:int = w; j < 0; j = j - 1) {
-        __write j,h,c;
-        __delay 16;
-
-    }       
-     w = w -1;        
+ __delay 1000;
+ }
                 """)
 
+# parser = par.Parser(""" 
+
+
+# fun Race(p1_c:colour,p2_c:colour,score_max:int)->int{ 
+#                     let p1_score:int = 0; 
+#                     let p2_score:int = 0; 
+
+#                      while ((p1_score < score_max) and (p2_score < score_max)){ 
+#                      let p1_toss:int= __random_int 1000; 
+#                      let p2_toss:int= __random_int 1000; 
+                     
+#                     if(p1_toss>p2_toss){ 
+#                      p1_score = p1_score + 1; 
+#                      __write 1,p1_score,p1_c; 
+#                      }else{
+#                      p2_score = p2_score + 1; 
+#                      __write 2,p2_score,p2_c; 
+#                      } 
+                     
+#                      __delay 100; 
+#                      } 
+                     
+#                      if(p2_score>p1_score){ 
+#                      return 2; 
+#                      } 
+                     
+#                      return 1; 
+#                     }
+#                      //Execution(programentrypoint)startsatthefirststatement 
+#                      //thatisnotafunctiondeclaration.Thisshouldgointhe.main 
+#                      //functionofParIR.
+#                      let c1:colour=#00ff00; //green 
+#                      let c2:colour=#0000ff; //blue 
+#                      let m:int=__height; //theheight(y-values)ofthepad 
+#                      let w:int=Race(c1,c2,m); //callfunctionRace 
+#                      __print w; //printsvalueofexpressiontoVMlogs    
+#                 """)
+
+parser = par.Parser("""
+                    let h:int = __height - 1;
+                    let w:int = __width - 1;
+                    let c:colour = #ff3410;
+                    let x:int = 0;
+                
+                    while (w > __width/2){
+                    for (let i:int = 0; i < h; i = i + 1) {
+                        __write w,i,c;
+                        __delay 16;
+                    }
+
+                    for (let j:int = w; j > 0; j = j - 1) {
+                        __write j,h,c;
+                        __delay 16;
+                    }
+
+                    for (let i:int = h; i > 0; i = i - 1) {
+                        __write x,i,c;
+                        __delay 16;
+                    }
+
+                    for (let j:int = 0; j < w; j = j + 1) {
+                        __write j,x,c;
+                        __delay 16;
+                    }
+                    x= x + 1;
+                    h = h - 1;
+                    w = w - 1;
+                    }
+""")
 ast_root = parser.Parse()
 
 
