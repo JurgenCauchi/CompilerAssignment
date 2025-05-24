@@ -608,12 +608,16 @@ class Parser:
 
 # parser = Parser("""
 
-#                 fun bozo(x:int) -> bool{
-#                     return true;
-#                     }
-
-#                     let x:bool = bozo(5);
-#                     __print x;
+#                 fun test(x: int, y: int) -> int {
+#                     while(x < y) {
+#                for (let j:int = 0; j < w; j = j + 1) {
+#                     let a: int = 5;
+#                     let b: int = 10;
+#                     let c: int = a + b;
+#                     return c;
+#                 }
+#                 }
+#                 }
 
 #                 """)
 

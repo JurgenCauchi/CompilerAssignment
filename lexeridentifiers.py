@@ -3,7 +3,6 @@ from enum import Enum
 
 # Define different types of tokens our lexer will recognize
 
-
 class TokenType(Enum):
     let = 1
     rtrn = 2
@@ -91,21 +90,17 @@ class Lexer:
 
     def InitialiseTxTable(self):
         # Define the state transitions for our lexer's finite automaton
-
-        # From state 0 (start state):
+        
         # - On letter or underscore, go to state 1 (identifier)
         self.Tx[0][self.lexeme_list.index("letter")] = 1
         self.Tx[0][self.lexeme_list.index("_")] = 1
         self.Tx[1][self.lexeme_list.index("_")] = 1
 
         # From state 1 (identifier):
-        # - On letter or digit, stay in state 1
         self.Tx[1][self.lexeme_list.index("letter")] = 1
         self.Tx[1][self.lexeme_list.index("digit")] = 1
 
         # White space handling:
-        # - From state 0, on whitespace go to state 2
-        # - From state 2, on whitespace stay in state 2
         self.Tx[0][self.lexeme_list.index("ws")] = 2
         self.Tx[2][self.lexeme_list.index("ws")] = 2
         self.Tx[0][self.lexeme_list.index("newline")] = 2
@@ -443,16 +438,25 @@ class Lexer:
 
 
 # # # Test the lexer
-lex = Lexer()
-toks = lex.GenerateTokens(""" 
-fun AverageOfTwo(x:int, y:int) -> float {
- let t0:int = x + y;
- let t1:float = t0 / 2 as float; //casting expression to a float
- return t1;
- }
-                
-                """)
+# lex = Lexer()
+# toks = lex.GenerateTokens(""" 
+# fun AverageOfTwo(x:int, y:int) -> float {
+#  let t0:int = x + y;
+#  let t1:float = t0 / 2 as float; //casting expression to a float
+#  return t1;
+#  }
+                          
+# x = 5;
+# y = 10;
 
-# Print all found tokens
-for t in toks:
-    print(t.type, t.lexeme)
+# for(i:int = 0; i < 10; i = i + 1) {  
+#                           while (i < 10) {
+#                           let t2:int = i * 2;
+#                           }
+#                           }             
+                
+#                 """)
+
+# # Print all found tokens
+# for t in toks:
+#     print(t.type, t.lexeme)

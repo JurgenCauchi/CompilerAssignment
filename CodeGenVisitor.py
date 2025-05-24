@@ -2,7 +2,7 @@ import parserblock as par
 from SemanticVisitor import Visitor
 from SemanticVisitor import TypeChecker
 import astnodes_ as ast
-import pyperclip
+#import pyperclip
 
 
 class CodeGenVisitor(Visitor):
@@ -412,41 +412,9 @@ class CodeGenVisitor(Visitor):
 #                 """)
 
 parser = par.Parser(""" 
-
-
-let h:int = __height -1 ;
-let w:int = __width -1;
-let c:colour = #ff0000;
-let hb:int = 0 ;
-                    
-
-while (h > __height/2 as int) {
-    for (let i:int = 0; i < h; i = i + 1) {  
-        __write hb,i,c;
-        __delay 16;
-                                                  
-            }
-    for (let j:int = 0; j < w; j = j + 1) {  
-    __write j,h,c;
-    __delay 16;          
-                               
-            }
-        for (let i:int = h; i > 0; i = i - 1) {  
-        __write h,i,c;
-        __delay 16;
-                                                  
-            }
-
-
-    for (let j:int = w; j > 0; j = j - 1) {  
-    __write j,hb,c;
-    __delay 16;          
-                               
-            } 
-    h = h - 1;
-    w = w - 1;
-    hb = hb + 1;
-              
+let c:int = 5;
+                    if (c < 10){
+                         __print 5;
                     }
                
                 """)
@@ -476,4 +444,4 @@ else:
     print("\nGenerated Assembly-like Code:")
     code = "\n".join(generator.instructions)
     print(code)
-    pyperclip.copy(code)
+    #pyperclip.copy(code)

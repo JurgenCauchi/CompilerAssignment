@@ -470,7 +470,7 @@ class PrintNodesVisitor(ASTVisitor):
         print('\t' * self.tab_count, "For loop Statement node => ")
         self.inc_tab_count()
         for_node.expr.accept(self)
-        for_node.vardeclr.accept(self)
+        for_node.vardec.accept(self)
         for_node.assgn.accept(self)
         for_node.blck.accept(self)
         self.dec_tab_count()

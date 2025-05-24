@@ -403,24 +403,69 @@ class TypeChecker(Visitor):
 
 # Assuming you have an AST root node from your parser
 
+
+# #Testing undecared variables
 # parser = par.Parser("""
 
-#                   fun giga()-> int {
-#                     return 5;
-#                     }
-#                 let x:int = giga();
+#               x = 5;                      
 
 #                     """)
 
-# # ast_root = parser.Parse()
+# #Testing declared variables
+# parser = par.Parser("""
 
-#     # Create and run the type checker
-# type_checker = TypeChecker()
-# type_checker.visit(ast_root)
+                 
+#             let y:int  = 10;
+#                     y = 6;
 
-# if type_checker.errors:
-#     print("Type checking failed with the following errors:")
-#     for error in type_checker.errors:
-#         print(f"- {error}")
-# else:
-#     print("Type checking passed!")
+#                     """)
+
+# #Testing Scopes
+# parser = par.Parser("""
+
+
+#             while (true) {
+#                     let y:int  = 6;
+#             }
+#                     y = 6;
+#                     """)
+
+# #Testing type mismatches
+# parser = par.Parser("""
+
+
+#             let y:int  = 6;
+#             y = 6.6;
+#                     """)
+
+# #testing casting
+# parser = par.Parser("""
+
+
+#             let y:float  = 6.5;
+#             y = 6 as float;
+#                     """)
+
+# #Testing return type mismatches
+parser = par.Parser("""
+
+
+            fun test() -> int{
+                    return 5.5;
+                    }
+                    """)
+
+
+
+ast_root = parser.Parse()
+
+    # Create and run the type checker
+type_checker = TypeChecker()
+type_checker.visit(ast_root)
+
+if type_checker.errors:
+    print("Type checking failed with the following errors:")
+    for error in type_checker.errors:
+        print(f"- {error}")
+else:
+    print("Type checking passed!")
